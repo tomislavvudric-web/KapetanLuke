@@ -44,8 +44,8 @@ class HarborView(private val ctx:Context): View(ctx) {
     private var rejectPenalty=100
     private var failPenalty=200
     private var movePenalty=20
-    private var daySeconds=20
-    private var waveIntervalSeconds=300
+    private var daySeconds=25
+    private var waveIntervalSeconds=360
     private var westEnd=0f; private var pontX=0f; private var gatX=0f
 
     private var scale=1f
@@ -467,7 +467,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         val box=LinearLayout(ctx).apply{
             orientation=LinearLayout.VERTICAL;setPadding(34,16,34,4)
             addView(TextView(ctx).apply{text="${ship.name} • ${ship.type} • ${ship.length} m\nPlanirani boravak: ${ship.days} dana\nNalog: ${ship.target}";textSize=19f})
-            addView(TextView(ctx).apply{text="V1–V14 = zapad • D1–D3 = dokovi\nI = istok • G1 = gat • P1–P6 = ponton";textSize=15f;setPadding(0,12,0,10)})
+            addView(TextView(ctx).apply{text=when(ship.target){"DOK"->"Dopušteno: D1–D3 • samo plutajući dokovi";"PONTON"->"Dopušteno: P1–P6 • samo ponton";else->"Dopušteno: V1–V14 • I • G1 • dokovi nisu dopušteni"};textSize=15f;setPadding(0,12,0,10)})
             addView(input)
         }
         AlertDialog.Builder(ctx).setTitle("⚓ ODABERI VEZ").setView(box)
@@ -482,7 +482,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         val box=LinearLayout(ctx).apply{
             orientation=LinearLayout.VERTICAL;setPadding(34,16,34,8)
             addView(TextView(ctx).apply{text="${ship.name} • ${ship.type} • ${ship.length} m\nPlanirani boravak: ${ship.days} dana\nTrenutno: $current";textSize=19f})
-            addView(TextView(ctx).apply{text="Odaberi novi vez. Brod će se sam okrenuti i namjestiti.\nV1–V14 • D1–D3 • I • G1 • P1–P6";textSize=15f;setPadding(0,12,0,10)})
+            addView(TextView(ctx).apply{text="Odaberi novu poziciju. Brod će se sam okrenuti i namjestiti.\n"+when(ship.target){"DOK"->"Dopušteno: D1–D3";"PONTON"->"Dopušteno: P1–P6";else->"Dopušteno: V1–V14 • I • G1"};textSize=15f;setPadding(0,12,0,10)})
             addView(input)
         }
         AlertDialog.Builder(ctx).setTitle("⚓ PROMIJENI VEZ").setView(box)
@@ -500,6 +500,14 @@ class HarborView(private val ctx:Context): View(ctx) {
     private fun executeMooringCommand(ship:Ship,raw:String){
         val cmd=raw.trim().uppercase(Locale("hr","HR")).replace(" ","")
         if(cmd.isBlank()){toast("Upiši V5, D1, I, G1 ili P2");return}
+        val wantsDock=Regex("D[123]").matches(cmd)
+        val wantsPontoon=Regex("P[1-6]").matches(cmd)
+        val wantsBerth=Regex("V(1[0-4]|[1-9])").matches(cmd) || cmd=="I" || cmd=="I1" || cmd=="G" || cmd=="G1"
+        when(ship.target){
+            "DOK" -> if(!wantsDock){toast("Nalog DOK: dopušteni su samo D1, D2 ili D3");return}
+            "PONTON" -> if(!wantsPontoon){toast("Nalog PONTON: dopušteni su samo P1–P6");return}
+            else -> if(!wantsBerth){toast("Nalog VEZ: dokovi D1–D3 nisu dopušteni");return}
+        }
         val start=18f;val bw=(westEnd-start)/14f
         val target:Triple<Float,Float,Int>?=when{
             Regex("V(1[0-4]|[1-9])").matches(cmd)->{
@@ -681,21 +689,21 @@ class HarborView(private val ctx:Context): View(ctx) {
         fun title(x:String)=TextView(ctx).apply{text=x;textSize=21f;setTextColor(Color.WHITE);typeface=Typeface.DEFAULT_BOLD;setPadding(0,16,0,8)}
         fun line(x:String)=TextView(ctx).apply{text=x;textSize=16f;setTextColor(Color.rgb(190,222,232));setPadding(12,9,12,9)}
         fun shipRow(code:String,q:Ship?):View=TextView(ctx).apply{
-            text=if(q==null)"$code   🟢 SLOBODAN" else "$code   🔴 ${q.name} | ${q.type} | ${q.length} m | ${q.days} dana | ${timeLeft(q,now)}"
+            text=if(q==null)"$code   🟢 SLOBODAN" else "$code   🔴 ${q.name} | ${q.type} | ${q.length} m | nalog ${q.target} | ${q.days} dana | ${timeLeft(q,now)}"
             textSize=16f;setTextColor(if(q==null)Color.rgb(130,225,170) else Color.WHITE);setPadding(14,11,14,11);setBackgroundColor(Color.rgb(13,45,64))
             if(q!=null)setOnClickListener{showChangeBerth(q)}
         }
         root.addView(title("⚓ INFO O VEZOVIMA I BRODOVIMA"))
         val next=if(pendingWave)"TURA ČEKA" else if(nextWaveAt>now)"za ${(nextWaveAt-now)/1000} s" else "po želji: NOVA TURA"
         root.addView(line("U luci ${inPort.size} • čeka vez ${waiting.size} • sljedeća tura $next"))
-        root.addView(line("IME • TIP • DUŽINA • VEZ/DOK • PLANIRANO DANA • ODLASCI\nStatus veza prati dodijeljeni vez broda, ne njegovu nacrtanu poziciju."))
+        root.addView(line("IME • TIP • DUŽINA • NALOG • VEZ/DOK • PLANIRANO DANA • ODLASCI\nStatus veza prati dodijeljeni vez broda, ne njegovu nacrtanu poziciju."))
         root.addView(title("ZAPAD • V1–V14"));for(n in 1..14)root.addView(shipRow("V$n",assigned.firstOrNull{locationCode(it)=="V$n"}))
         root.addView(title("PONTON • P1–P6"));for(n in 1..6)root.addView(shipRow("P$n",assigned.firstOrNull{locationCode(it)=="P$n"}))
         root.addView(title("GAT • G1 • 125 m lijevo + 110 m desno"));val gat=inPort.filter{locationCode(it)=="G1"};root.addView(line("Zauzeto ${gat.sumOf{it.length}}/235 m • slobodno ${max(0,235-gat.sumOf{it.length})} m"));gat.forEach{root.addView(shipRow("G1",it))}
         root.addView(title("ISTOČNA OBALA • I • 188 m"));val east=inPort.filter{locationCode(it)=="I"};root.addView(line("Zauzeto ${east.sumOf{it.length}}/188 m • slobodno ${max(0,188-east.sumOf{it.length})} m"));east.forEach{root.addView(shipRow("I",it))}
         root.addView(title("PLUTAJUĆI DOKOVI"));for(n in 1..3){val cap=when(n){1->85;2->60;else->140};val ds=inPort.filter{locationCode(it)=="D$n"};val used=ds.sumOf{it.length};root.addView(line("D$n • $used/$cap m • slobodno ${max(0,cap-used)} m • ${ds.size} brodova"));ds.forEach{root.addView(shipRow("D$n",it))}}
         root.addView(title("ČEKA VEZ"));if(waiting.isEmpty())root.addView(line("✓ Nema brodova na čekanju")) else waiting.forEach{q->root.addView(TextView(ctx).apply{text="${q.name} | ${q.type} | ${q.length} m | ${q.days} dana | ${shortTarget(q)}";textSize=16f;setTextColor(Color.WHITE);setPadding(14,11,14,11);setBackgroundColor(Color.rgb(13,45,64));setOnClickListener{showMooringCommand(q)}})}
-        root.addView(title("SVI AKTIVNI BRODOVI"));(inPort+waiting).distinctBy{it.name}.forEach{q->val loc=if(q.placed)locationCode(q) else "ČEKA";root.addView(line("${q.name} • ${q.type} • ${q.length} m • $loc • ${q.days} dana • ${if(q.placed)timeLeft(q,now) else "nije vezan"}"))}
+        root.addView(title("SVI AKTIVNI BRODOVI"));(inPort+waiting).distinctBy{it.name}.forEach{q->val loc=if(q.placed)locationCode(q) else "ČEKA";root.addView(line("${q.name} • ${q.type} • ${q.length} m • nalog ${q.target} • $loc • ${q.days} dana • ${if(q.placed)timeLeft(q,now) else "nije vezan"}"))}
         val close=Button(ctx).apply{text="ZATVORI INFO";textSize=17f}
         root.addView(close);scroll.addView(root)
         val d=Dialog(ctx);d.requestWindowFeature(Window.FEATURE_NO_TITLE);d.setContentView(scroll);d.setCancelable(true);d.show();close.setOnClickListener{d.dismiss()};d.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT));d.window?.setLayout((resources.displayMetrics.widthPixels*.98f).toInt(),(resources.displayMetrics.heightPixels*.92f).toInt())
@@ -816,8 +824,9 @@ class HarborView(private val ctx:Context): View(ctx) {
         }
         val due=ships.filter{it.placed&&!it.departed&&it.departureAt>0&&now>=it.departureAt}
         due.forEach{s->
-            // Jednostavna provjera blokade: vrlo blizak brod zadržava odlazak.
-            val blocked=ships.any{o->
+            // Tenderi na P1–P6 uvijek imaju slobodan izlaz kroz 32 m koridor i ne mogu biti BLOKIRANI.
+            val isPontoonTender=s.target=="PONTON" || s.berthCode.matches(Regex("P[1-6]"))
+            val blocked=!isPontoonTender && ships.any{o->
                 o!==s && o.placed && !o.departed &&
                 hypot((o.x-s.x).toDouble(),(o.y-s.y).toDouble()) < max(22.0,(o.length+s.length)*.30)
             }
@@ -863,8 +872,8 @@ class HarborView(private val ctx:Context): View(ctx) {
             return e
         }
         val fTime=field("Trajanje runde (sekunde)",secs.coerceAtLeast(60))
-        val fDay=field("Brzina boravka: sekundi za 1 dan (preporuka 20)",daySeconds)
-        val fWave=field("Razmak novih tura u sekundama (preporuka 300)",waveIntervalSeconds)
+        val fDay=field("Brzina boravka: sekundi za 1 dan (preporuka 25)",daySeconds)
+        val fWave=field("Razmak novih tura u sekundama (preporuka 360)",waveIntervalSeconds)
         val fReward=field("Bodovi za smješten brod",reward)
         val fReject=field("Kazna odbijanja po brodu",rejectPenalty)
         val fFail=field("Kazna prihvaćen, a nesmješten",failPenalty)

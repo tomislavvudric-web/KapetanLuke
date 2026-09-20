@@ -11,8 +11,8 @@ android {
         applicationId = "hr.kapetanluke.game"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "0.9.0"
+        versionCode = 17
+        versionName = "0.9.1"
     }
 
     compileOptions {
