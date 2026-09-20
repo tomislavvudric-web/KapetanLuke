@@ -1,13 +1,11 @@
-# Kapetan Luke v0.8.8
+# Kapetan Luke v0.9.0
 
-Popravci nakon testiranja v0.8.7:
-- D3 prihvaća i automatski slaže brodove prema stvarnom kapacitetu 140 m.
-- D1/D2/D3 koriste zasebne liste zauzeća i razmak između brodova, bez preklapanja.
-- Brodovi na kosoj istočnoj obali automatski se postavljaju na morsku stranu i prate kut obale.
-- INFO O VEZOVIMA premješten je u veliku stalnu tipku pri dnu ekrana.
-- INFO prikazuje V1-V14, P1-P6, G1, I, D1-D3 i sve aktivne brodove s imenom, tipom, dužinom, pozicijom i planiranim boravkom.
-- Dorađena top-down grafika brodova: trup s pramcem, paluba, kabina, prozori i razlike po tipu broda.
+Večernja stabilizacija prema odobrenom Harbour Control izgledu.
 
-
-## v0.8.9
-- Build fix: Android Path quadraticBezierTo zamijenjen s quadTo.
+- INFO O VEZOVIMA dobio veliku stalnu tipku u gornjem HUD-u + donju rezervnu tipku.
+- INFO status V1–V14/P1–P6 prati stvarno dodijeljeni berthCode, pa zauzeti V13 više ne može biti prikazan kao slobodan.
+- Zapad: automatski vez postavlja krmu uz obalu, pramac prema moru.
+- Odabir/promjena veza prikazuje ime, tip, dužinu i planirani broj dana.
+- Zapadna i istočna obala vizualno su spojene na glavi gata.
+- Sporija igra: nova tura zadano 300 s, 1 dan boravka 20 s; oba parametra su podesiva.
+- Dorada proceduralne top-down grafike brodova.
