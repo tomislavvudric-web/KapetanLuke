@@ -1,11 +1,10 @@
-# Kapetan luke v0.4
+# Kapetan Luke v0.5
 
-- moderniji i veći HUD koji se ne zumira
-- pozdrav kapetanu nakon upisa imena
-- veliki INFO pregled: čeka smještaj, u luci/odlasci, otplovili
-- 1 prst na brodu = pomicanje broda
-- 1 prst na praznoj karti = pomicanje karte
-- 2 prsta = zoom; prekida odabir broda
-- brod prestaje biti zelen čim ga počnete premještati
-- timer, bodovi, automatski odlazak i obavijesti
-- moderniji tamno-nautički izgled
+- moderni Harbour Control izgled i puno veći HUD
+- INFO kao veliki pregled luke
+- pojedinačno prihvaćanje/odbijanje svakog ponuđenog broda
+- RESET IGRE s potvrdom
+- dva prsta uvijek upravljaju kartom: pinch zoom + pan
+- jedan prst na brodu pomiče brod
+- precizna poruka zašto se brod ne može vezati
+- provjera ograničenja veza, gata, pontona i dokova
