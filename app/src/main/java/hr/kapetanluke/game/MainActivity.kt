@@ -75,7 +75,20 @@ private val tick = object : Runnable {
  private fun validatePlacement(s:Ship){val valid=when(s.target){"PONTON"->s.length<=8&&s.x in (pontX-45f)..(pontX+65f)&&s.y in 150f..355f;"DOK"->s.y>410f&&s.x in (gatX-230f)..(gatX+100f);else->validBerth(s)};if(valid&&!collides(s)){s.placed=true;if(!s.scored){score+=reward;s.scored=true;toast("${s.name}: +$reward")};if(ships.all{it.placed})finishRound()}else{s.placed=false;toast("Nevaljana pozicija — provjeri dužinu, kopno ili drugi brod")}}
  private fun validBerth(s:Ship):Boolean{if(s.y in 120f..230f){if(s.x<westEnd){val idx=((s.x-18f)/((westEnd-18f)/14f)).toInt().coerceIn(0,13);val berth=14-idx;val max=when(berth){in 1..3->45;in 4..8->65;else->110};return s.length<=max};if(s.x>gatX+45f)return s.length<=150};if(s.x in (gatX-55f)..(gatX+100f)&&s.y in 150f..450f)return s.length<=120;return false}
  private fun collides(s:Ship):Boolean=ships.any{o->o!==s&&o.placed&&hypot((o.x-s.x).toDouble(),(o.y-s.y).toDouble())<max(30.0,(o.length+s.length)*.38)}
- private fun finishRound(){if(!running)return;running=false;val missing=ships.count{accepted&&!it.placed};if(missing>0){score-=missing*failPenalty;toast("$missing prihvaćenih brodova nije smješteno: -${missing*failPenalty}")}saveResult();AlertDialog.Builder(ctx).setTitle("KRAJ RUNDE").setMessage("Kapetan: $captain\nRezultat: $score bodova\nSmješteno: ${ships.count{it.placed}}/${ships.size}\n\nRezultat je spremljen.").setPositiveButton("NOVA IGRA"){_,_->restart()}.setNegativeButton("ZATVORI",null).show();invalidate()}
+private fun finishRound() {
+    if (!running) return
+
+    running = false
+
+    val missing = ships.count { accepted && !it.placed }
+
+    if (missing > 0) {
+        score -= missing * failPenalty
+    }
+
+    saveResult()
+    invalidate()
+}
  private fun saveResult(){val old=prefs.getString("results","")?:"";val row="$captain|$score|${System.currentTimeMillis()}";prefs.edit().putString("results",(row+"\n"+old).lines().take(10).joinToString("\n")).apply()}
  private fun showSettings(){val box=LinearLayout(ctx).apply{orientation=LinearLayout.VERTICAL;setPadding(35,10,35,0)};fun field(label:String,value:Int):EditText{val e=EditText(ctx).apply{hint=label;inputType=2;setText(value.toString())};box.addView(TextView(ctx).apply{text=label});box.addView(e);return e};val fTime=field("Trajanje runde (sekunde)",secs.coerceAtLeast(60));val fReward=field("Bodovi za smješten brod",reward);val fReject=field("Kazna odbijanja po brodu",rejectPenalty);val fFail=field("Kazna prihvaćen, a nesmješten",failPenalty);AlertDialog.Builder(ctx).setTitle("POSTAVKE").setView(box).setPositiveButton("SPREMI"){_,_->secs=fTime.text.toString().toIntOrNull()?.coerceIn(60,3600)?:secs;reward=fReward.text.toString().toIntOrNull()?.coerceIn(0,1000)?:reward;rejectPenalty=fReject.text.toString().toIntOrNull()?.coerceIn(0,1000)?:rejectPenalty;failPenalty=fFail.text.toString().toIntOrNull()?.coerceIn(0,2000)?:failPenalty;invalidate()}.setNegativeButton("ODUSTANI",null).show()}
  private fun restart(){running=false;score=1000;secs=300;accepted=false;ships.forEach{it.x=0f;it.y=0f;it.rot=0;it.accepted=false;it.placed=false;it.scored=false};askCaptain();invalidate()}
