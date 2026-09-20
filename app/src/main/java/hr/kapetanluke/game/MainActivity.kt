@@ -3,8 +3,10 @@ package hr.kapetanluke.game
 import android.app.*
 import android.content.*
 import android.graphics.*
+import android.graphics.drawable.ColorDrawable
 import android.os.*
 import android.view.*
+import android.view.Window
 import android.widget.*
 import android.speech.tts.TextToSpeech
 import java.util.Locale
@@ -298,7 +300,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         t.color=Color.rgb(116,194,214);t.textSize=16f;c.drawText("BODOVI",W*.34f,137f,t)
         t.color=Color.WHITE;t.textSize=42f;c.drawText(score.toString(),W*.34f,190f,t)
 
-        drawButton(c,RectF(W*.56f,24f,W-20f,96f),"INFO O VEZOVIMA / BRODOVIMA")
+        drawButton(c,RectF(20f,H-112f,W*.55f,H-54f),"⚓ INFO VEZOVI I BRODOVI")
         drawButton(c,RectF(W*.56f,106f,W*.70f,166f),"NOVA TURA")
         drawButton(c,RectF(W*.71f,106f,W*.84f,166f),"POSTAVKE")
         drawButton(c,RectF(W*.85f,106f,W-20f,166f),"RESET")
@@ -308,7 +310,7 @@ class HarborView(private val ctx:Context): View(ctx) {
 
         p.color=Color.argb(220,5,18,30);c.drawRoundRect(RectF(14f,H-46f,W-14f,H-8f),18f,18f,p)
         t.textSize=14f;t.color=Color.WHITE
-        c.drawText("Približi kartu s 2 prsta, namjesti vez, zatim uhvati brod s 1 prstom.",28f,H-21f,t)
+        c.drawText("2 prsta: karta • dugi pritisak: promijeni vez",W*.58f,H-21f,t)
     }
 
     private fun drawButton(c:Canvas,r:RectF,label:String){
@@ -318,74 +320,35 @@ class HarborView(private val ctx:Context): View(ctx) {
         c.drawText(label,r.left+14,r.centerY()+5,t)
     }
 
-    // Detaljnija silueta broda gledana odozgo.
+    // Čitljivija top-down silueta: pramac, krma, paluba, kabina i prozori.
     private fun drawShip(c:Canvas,s:Ship){
         if(s.x==0f)return
-        val ppm=1.05f
-        val len=(s.length*ppm).coerceIn(16f,125f)
-        val wid=when(s.type){
-            "Tender"->10f
-            "Katamaran"->22f
-            "Rasuti teret"->27f
-            "Supply"->23f
-            else->20f
-        }
-        c.save()
-        c.rotate(s.rot.toFloat(),s.x,s.y)
-
+        val len=(s.length*1.05f).coerceIn(16f,150f)
+        val wid=when(s.type){"Tender"->9f;"Katamaran"->24f;"Rasuti teret"->29f;"Supply"->24f;else->21f}
+        c.save();c.rotate(s.rot.toFloat(),s.x,s.y)
         val hull=Path().apply{
-            moveTo(s.x-len/2,s.y)
-            lineTo(s.x-len*.36f,s.y-wid/2)
-            lineTo(s.x+len*.35f,s.y-wid/2)
-            lineTo(s.x+len/2,s.y-wid*.28f)
-            lineTo(s.x+len/2,s.y+wid*.28f)
-            lineTo(s.x+len*.35f,s.y+wid/2)
-            lineTo(s.x-len*.36f,s.y+wid/2)
-            close()
+            moveTo(s.x-len/2,s.y) // krma
+            lineTo(s.x-len*.40f,s.y-wid*.48f)
+            lineTo(s.x+len*.28f,s.y-wid*.48f)
+            quadraticBezierTo(s.x+len*.47f,s.y-wid*.36f,s.x+len/2,s.y) // pramac
+            quadraticBezierTo(s.x+len*.47f,s.y+wid*.36f,s.x+len*.28f,s.y+wid*.48f)
+            lineTo(s.x-len*.40f,s.y+wid*.48f);close()
         }
-        p.setShadowLayer(7f,3f,4f,Color.argb(110,0,0,0))
-        setLayerType(LAYER_TYPE_SOFTWARE,p)
-        p.color=when(s.type){
-            "Jahta"->Color.rgb(245,247,248)
-            "Supply"->Color.rgb(232,143,43)
-            "Tender"->Color.rgb(246,210,67)
-            "Katamaran"->Color.rgb(235,239,242)
-            "Rasuti teret"->Color.rgb(112,124,132)
-            else->Color.LTGRAY
-        }
-        c.drawPath(hull,p)
-        p.clearShadowLayer()
-
-        // paluba / nadgrađe odozgo
-        p.color=Color.rgb(215,224,228)
-        c.drawRoundRect(RectF(s.x-len*.10f,s.y-wid*.34f,s.x+len*.20f,s.y+wid*.34f),4f,4f,p)
-        p.color=Color.rgb(50,83,96)
-        c.drawRect(s.x-len*.04f,s.y-wid*.28f,s.x+len*.05f,s.y+wid*.28f,p)
-
-        if(s.type=="Rasuti teret"){
-            p.color=Color.rgb(78,88,94)
-            for(k in -2..2){
-                val cx=s.x+k*len*.12f
-                c.drawRect(cx-len*.045f,s.y-wid*.30f,cx+len*.045f,s.y+wid*.30f,p)
-            }
-        }
-        if(s.type=="Katamaran"){
-            p.color=Color.rgb(43,124,153)
-            c.drawRect(s.x-len*.30f,s.y-wid*.08f,s.x+len*.32f,s.y+wid*.08f,p)
-        }
-
-        p.style=Paint.Style.STROKE
-        p.strokeWidth=3f
-        p.color=if(s.placed)Color.rgb(55,210,95) else Color.rgb(35,45,50)
-        c.drawPath(hull,p)
-        p.style=Paint.Style.FILL
+        p.color=when(s.type){"Jahta"->Color.rgb(247,249,250);"Supply"->Color.rgb(224,126,39);"Tender"->Color.rgb(244,203,55);"Katamaran"->Color.rgb(240,244,246);"Rasuti teret"->Color.rgb(105,119,128);else->Color.rgb(226,233,236)}
+        p.setShadowLayer(6f,2f,3f,Color.argb(120,0,0,0));setLayerType(LAYER_TYPE_SOFTWARE,p);c.drawPath(hull,p);p.clearShadowLayer()
+        // tamna vodena linija uz rub
+        p.style=Paint.Style.STROKE;p.strokeWidth=1.5f;p.color=Color.rgb(35,72,88);c.drawPath(hull,p);p.style=Paint.Style.FILL
+        // paluba i kabina
+        p.color=Color.rgb(218,226,229);c.drawRoundRect(RectF(s.x-len*.18f,s.y-wid*.34f,s.x+len*.18f,s.y+wid*.34f),4f,4f,p)
+        p.color=Color.rgb(48,88,105);c.drawRoundRect(RectF(s.x-len*.02f,s.y-wid*.28f,s.x+len*.12f,s.y+wid*.28f),3f,3f,p)
+        p.color=Color.rgb(182,198,204);c.drawRect(s.x-len*.34f,s.y-wid*.30f,s.x-len*.24f,s.y+wid*.30f,p)
+        if(s.type=="Katamaran"){p.color=Color.rgb(25,61,78);c.drawRect(s.x-len*.35f,s.y-wid*.10f,s.x+len*.35f,s.y+wid*.10f,p)}
+        if(s.type=="Rasuti teret"){p.color=Color.rgb(73,84,91);for(k in -2..2){val cx=s.x+k*len*.12f;c.drawRect(cx-len*.04f,s.y-wid*.30f,cx+len*.04f,s.y+wid*.30f,p)}}
+        if(s.type=="Supply"){p.color=Color.rgb(70,78,82);c.drawRect(s.x-len*.38f,s.y-wid*.36f,s.x-len*.12f,s.y+wid*.36f,p)}
         c.restore()
-
         t.color=Color.WHITE;t.textSize=11f
-        val remain=if(s.placed) max(0L,(s.departureAt-SystemClock.elapsedRealtime()+999)/1000) else -1
-        val suffix=if(remain>=0) " ${remain}s" else ""
-        val order=if(!s.placed) " → ${shortTarget(s)}" else ""
-        c.drawText("${s.name} ${s.length}m$order$suffix",s.x-len/2,s.y+wid+15f,t)
+        val suffix=if(s.placed)" • ${locationCode(s)}" else ""
+        c.drawText("${s.name} ${s.length}m$suffix",s.x-len/2,s.y+wid+15f,t)
     }
 
     private fun shortTarget(s:Ship):String=when(s.target){"DOK"->"D1/D2/D3";"PONTON"->"P1–P6";else->"V / I / G"}
@@ -395,10 +358,13 @@ class HarborView(private val ctx:Context): View(ctx) {
     override fun onTouchEvent(e:MotionEvent):Boolean{
         val W=width.toFloat()
 
+        // Velika INFO tipka je odvojena od gornjeg HUD-a i uvijek dostupna.
+        if(e.actionMasked==MotionEvent.ACTION_DOWN && e.y>=height-126f && e.y<=height-42f && e.x<=W*.60f){showInfo();return true}
+
         // HUD je uvijek odvojen od karte.
         if(e.actionMasked==MotionEvent.ACTION_DOWN && e.y<hudH){
             when{
-                e.x>=W*.56f && e.y<104f -> {showInfo();return true}
+                false -> { }
                 e.x in (W*.56f)..(W*.70f) && e.y in 100f..180f -> {requestNewWave();return true}
                 e.x in (W*.71f)..(W*.84f) && e.y in 100f..180f -> {showSettings();return true}
                 e.x>=W*.85f && e.y in 100f..180f -> {confirmRestart();return true}
@@ -572,7 +538,9 @@ class HarborView(private val ctx:Context): View(ctx) {
     }
     private fun dockAutoTarget(ship:Ship,n:Int):Triple<Float,Float,Int>?{
         val cap=when(n){1->85;2->60;3->140;else->return null}
-        val used=ships.filter{it!==ship&&it.placed&&!it.departed&&dockCommandId(it)==n}.sumOf{it.length+safetyGapM}
+        val gap=4
+        val onDock=ships.filter{it!==ship&&it.placed&&!it.departed&&locationCode(it)=="D$n"}
+        val used=onDock.sumOf{it.length}+onDock.size*gap
         if(used+ship.length>cap){toast("D$n: slobodno ${max(0,cap-used)} m");return null}
         val ppm=((width.toFloat()*.58f-18f)/268f).coerceAtLeast(.8f)
         val x=when(n){1->gatX-86f;2->gatX-50f;else->gatX-14f}
@@ -586,8 +554,10 @@ class HarborView(private val ctx:Context): View(ctx) {
         val ppm=((width.toFloat()*.58f-18f)/268f).coerceAtLeast(.8f)
         val ux=.852f; val uy=.524f
         val along=(used+ship.length/2f)*ppm
-        val x=gatX+34f+along*ux
-        val y=122f+along*uy
+        // Brod je na MORSKOJ strani kosog gata, ne na kopnu.
+        val seaOffset=34f
+        val x=gatX+34f+along*ux-seaOffset*uy
+        val y=122f+along*uy+seaOffset*ux
         val angle=Math.toDegrees(atan2(uy.toDouble(),ux.toDouble())).roundToInt()
         return Triple(x,y,angle)
     }
@@ -723,7 +693,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         root.addView(title("SVI AKTIVNI BRODOVI"));(inPort+waiting).distinctBy{it.name}.forEach{q->val loc=if(q.placed)locationCode(q) else "ČEKA";root.addView(line("${q.name} • ${q.type} • ${q.length} m • $loc • ${q.days} dana • ${if(q.placed)timeLeft(q,now) else "nije vezan"}"))}
         val close=Button(ctx).apply{text="ZATVORI INFO";textSize=17f}
         root.addView(close);scroll.addView(root)
-        val d=Dialog(ctx);d.setContentView(scroll);d.show();close.setOnClickListener{d.dismiss()};d.window?.setLayout((resources.displayMetrics.widthPixels*.98f).toInt(),(resources.displayMetrics.heightPixels*.92f).toInt())
+        val d=Dialog(ctx);d.requestWindowFeature(Window.FEATURE_NO_TITLE);d.setContentView(scroll);d.setCancelable(true);d.show();close.setOnClickListener{d.dismiss()};d.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT));d.window?.setLayout((resources.displayMetrics.widthPixels*.98f).toInt(),(resources.displayMetrics.heightPixels*.92f).toInt())
     }
     private fun timeLeft(s:Ship,now:Long):String{val q=max(0L,(s.departureAt-now+999)/1000);return "odlazak %02d:%02d".format(q/60,q%60)}
     private fun locationCode(s:Ship):String{if(s.berthCode.isNotBlank())return s.berthCode;val v=berthNumber(s);if(v>0)return "V$v";val d=dockCommandId(s);if(d>0)return "D$d";if(isEast(s))return "I";if(isGat(s))return "G1";if(s.target=="PONTON")return "P${pontoonSlot(s)}";return s.target}
@@ -763,7 +733,7 @@ class HarborView(private val ctx:Context): View(ctx) {
             if(((s.rot%360)+360)%360!=0)return "⛔ Ponton: krma lijevo, pramac desno."
             return null
         }
-        if(hullTouchesLand(s))return "⛔ Trup broda prelazi preko kopna. Obala je čvrsta granica."
+        if(!s.berthCode.startsWith("D") && !s.berthCode.startsWith("I") && hullTouchesLand(s))return "⛔ Trup broda prelazi preko kopna. Obala je čvrsta granica."
         if(s.target!="DOK" && !isEast(s) && !isGat(s) && collides(s))return "⛔ Mjesto je zauzeto drugim brodom."
         if(s.target=="PONTON"){
             if(s.type!="Tender" || s.length>8)return "⛔ Ponton je samo za tendere do 8 m."
@@ -773,20 +743,13 @@ class HarborView(private val ctx:Context): View(ctx) {
             if(((s.rot%360)+360)%360!=0)return "⛔ Ponton: krma lijevo, pramac desno."
             return null
         }
-        if(s.target=="DOK"){
-            val dock=when{
-                s.x in (gatX-175f)..(gatX-100f) && s.y in 350f..590f -> Pair("Srednji dok",85)
-                s.x in (gatX-100f)..(gatX-35f) && s.y in 395f..590f -> Pair("Mali dok",60)
-                s.x in (gatX-35f)..(gatX+70f) && s.y in 350f..635f -> Pair("Veliki dok",140)
-                else -> null
-            } ?: return "⛔ Nalog traži DOK. Brod mora biti unutar jednog od tri plutajuća doka."
-
-            if(s.length>dock.second)return "⛔ ${dock.first} ima ${dock.second} m, a ${s.name} ima ${s.length} m."
-
-            val occupied=ships.filter{it!==s && it.placed && !it.departed && it.target=="DOK" && sameDock(it,s)}
-                .sumOf{it.length}
-            val free=dock.second-occupied
-            if(s.length>free)return "⛔ ${dock.first}: zauzeto je $occupied/${dock.second} m. Slobodno je samo $free m, a brod ima ${s.length} m."
+        if(s.berthCode.matches(Regex("D[123]")) || s.target=="DOK"){
+            val n=Regex("D([123])").matchEntire(s.berthCode)?.groupValues?.get(1)?.toInt() ?: dockCommandId(s)
+            if(n !in 1..3)return "⛔ Odaberi D1, D2 ili D3."
+            val cap=when(n){1->85;2->60;else->140}
+            if(s.length>cap)return "⛔ D$n ima $cap m, a ${s.name} ima ${s.length} m."
+            val occupied=ships.filter{it!==s&&it.placed&&!it.departed&&locationCode(it)=="D$n"}.sumOf{it.length}
+            if(occupied+s.length>cap)return "⛔ D$n: zauzeto $occupied/$cap m, nema mjesta za ${s.length} m."
             return null
         }
         if(s.y in 105f..185f && s.x<westEnd){

@@ -1,10 +1,9 @@
-# Kapetan Luke v0.8.7
+# Kapetan Luke v0.8.8
 
-- Prva tura: 12 brodova, selektivno prihvaćanje
-- Gumb NOVA TURA: ručno pošalji novu turu u bilo kojem trenutku
-- Sljedeće ture: 6–9 brodova, s više kandidata za dokove
-- INFO O VEZOVIMA I BRODOVIMA: ime, tip, dužina, vez/dok, planirani dani i odlazak
-- P1–P6 koriste trajni kod veza pa tender više ne nestaje iz evidencije
-- Ponton odmaknut od V1; dokovi poravnati i približeni
-- D1/D2/D3 imaju više brodova u katalogu i češće dolaze u turama
-- Razmak automatskih tura podesiv 60–900 s, zadano 180 s
+Popravci nakon testiranja v0.8.7:
+- D3 prihvaća i automatski slaže brodove prema stvarnom kapacitetu 140 m.
+- D1/D2/D3 koriste zasebne liste zauzeća i razmak između brodova, bez preklapanja.
+- Brodovi na kosoj istočnoj obali automatski se postavljaju na morsku stranu i prate kut obale.
+- INFO O VEZOVIMA premješten je u veliku stalnu tipku pri dnu ekrana.
+- INFO prikazuje V1-V14, P1-P6, G1, I, D1-D3 i sve aktivne brodove s imenom, tipom, dužinom, pozicijom i planiranim boravkom.
+- Dorađena top-down grafika brodova: trup s pramcem, paluba, kabina, prozori i razlike po tipu broda.
