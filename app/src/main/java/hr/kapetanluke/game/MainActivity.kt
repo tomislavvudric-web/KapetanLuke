@@ -211,48 +211,63 @@ class HarborView(private val ctx:Context): View(ctx) {
         c.scale(scale,scale)
 
         val worldW=W
-        westEnd=worldW*.60f
-        pontX=westEnd-10f
-        gatX=westEnd+55f
+        // v0.8.5: geometrija prema stvarnim mjerama Adria Docks.
+        // Jedna skala za obalu, gat, ponton, dokove i brodove.
+        val shoreStart=18f
+        val metresToPx=((worldW*.58f)-shoreStart)/268f
+        westEnd=shoreStart+268f*metresToPx
+        pontX=westEnd-10f*metresToPx
+        gatX=westEnd+28f*metresToPx
 
-        // Kopno je namjerno usko - vezivanje uz sami rub obale.
+        // Zapadna obala 268 m. Kote se namjerno ne crtaju na karti.
         p.color=Color.rgb(173,164,139)
-        c.drawRect(0f,68f,worldW,118f,p)
+        c.drawRect(0f,68f,westEnd+20f,118f,p)
 
-        val start=18f
-        val bw=(westEnd-start)/14f
+        val bw=(westEnd-shoreStart)/14f
         t.color=Color.rgb(22,46,52); t.textSize=13f
         for(i in 0 until 14){
             val n=14-i
-            val x=start+i*bw
+            val x=shoreStart+i*bw
             c.drawLine(x,110f,x,126f,p)
-            c.drawText(n.toString(),x+2,91f,t)
+            c.drawText("V$n",x+1,91f,t)
         }
-        t.textSize=11f
-        c.drawText("9–14: 65–110 m",22f,108f,t)
-        c.drawText("4–8: 45–65 m",westEnd*.40f,108f,t)
-        c.drawText("1–3: do 45 m",westEnd*.77f,108f,t)
 
+        // Ponton 30 m, P1-P6. Tenderi: krma lijevo, pramac desno.
         p.color=Color.rgb(102,118,121)
-        c.drawRect(pontX,118f,pontX+18f,250f,p)
-        t.textSize=11f;c.drawText("PONTON P1–P6",pontX-28f,88f,t)
-        for(k in 0 until 6){t.textSize=9f;c.drawText("P${k+1}",pontX+22f,140f+k*18f,t)}
+        val pontLen=30f*metresToPx
+        c.drawRect(pontX,118f,pontX+14f,118f+pontLen,p)
+        t.textSize=10f;c.drawText("P1–P6",pontX-7f,106f,t)
+        for(k in 0 until 6){c.drawText("P${k+1}",pontX+18f,132f+k*(pontLen/6f),t)}
 
-        c.drawRect(gatX,118f,gatX+30f,360f,p)
-        c.drawText("GAT",gatX+3f,88f,t)
-        c.drawText("120 m / strana",gatX-25f,106f,t)
+        // Gat: gornjih 32 m lijevo je prolaz za tendere bez vezivanja.
+        // Korisni vezovi: lijevo 125 m, desno 110 m.
+        val gatTop=118f
+        val shallow32=32f*metresToPx
+        val gatLeft125=125f*metresToPx
+        val gatRight110=110f*metresToPx
+        val gatBottom=gatTop+shallow32+gatLeft125
+        c.drawRect(gatX,gatTop,gatX+28f,gatBottom,p)
+        t.textSize=11f;c.drawText("G1",gatX+5f,106f,t)
+        p.color=Color.argb(90,220,235,238)
+        c.drawRect(gatX-7f,gatTop,gatX,gatTop+shallow32,p)
 
-        c.drawRect(gatX+30f,68f,worldW,118f,p)
-        t.textSize=13f;c.drawText("ISTOČNA OBALA 150 m",gatX+45f,98f,t)
+        // Kosi dio / istočna obala 188 m, nacrtan dijagonalno kao na referentnoj slici.
+        p.color=Color.rgb(173,164,139);p.strokeWidth=24f
+        val eastX2=min(worldW-18f,gatX+188f*metresToPx*.78f)
+        val eastY2=gatTop+188f*metresToPx*.48f
+        c.drawLine(gatX+28f,gatTop+4f,eastX2,eastY2,p)
+        p.strokeWidth=1f
+        t.textSize=11f;c.drawText("I",gatX+38f,gatTop+26f,t)
 
+        // Tri plutajuća doka, sjever-jug: D1 85 m, D2 60 m, D3 140 m.
         p.color=Color.rgb(83,101,108)
-        c.drawRoundRect(RectF(gatX-150f,380f,gatX-118f,565f),6f,6f,p)
-        c.drawRoundRect(RectF(gatX-82f,425f,gatX-50f,565f),6f,6f,p)
-        c.drawRoundRect(RectF(gatX,380f,gatX+30f,610f),6f,6f,p)
-        t.color=Color.WHITE;t.textSize=12f
-        c.drawText("85 m",gatX-150f,585f,t)
-        c.drawText("60 m",gatX-82f,585f,t)
-        c.drawText("140 m",gatX,630f,t)
+        val dockTop=gatBottom+30f
+        val d1x=gatX-145f; val d2x=gatX-72f; val d3x=gatX+48f
+        c.drawRoundRect(RectF(d1x,dockTop,d1x+28f,dockTop+85f*metresToPx),5f,5f,p)
+        c.drawRoundRect(RectF(d2x,dockTop+25f,d2x+28f,dockTop+25f+60f*metresToPx),5f,5f,p)
+        c.drawRoundRect(RectF(d3x,dockTop,d3x+28f,dockTop+140f*metresToPx),5f,5f,p)
+        t.color=Color.WHITE;t.textSize=11f
+        c.drawText("D1",d1x+4f,dockTop-7f,t);c.drawText("D2",d2x+4f,dockTop+18f,t);c.drawText("D3",d3x+4f,dockTop-7f,t)
 
         if(accepted) ships.filter{!it.departed}.forEach{drawShip(c,it)}
         c.restore()
@@ -515,7 +530,7 @@ class HarborView(private val ctx:Context): View(ctx) {
                 val n=cmd.drop(1).toInt()
                 if(ship.type!="Tender"||ship.length>8){toast("Ponton je za tendere do 8 m");null}
                 else if(ships.any{it!==ship&&it.placed&&!it.departed&&pontoonSlot(it)==n}){toast("P$n je zauzet");null}
-                else Triple(pontX+30f,132f+(n-1)*22f,180)
+                else Triple(pontX+30f,132f+(n-1)*22f,0)
             }
             else->null
         }
@@ -539,16 +554,17 @@ class HarborView(private val ctx:Context): View(ctx) {
     }
     private fun eastAutoTarget(ship:Ship):Triple<Float,Float,Int>?{
         val used=ships.filter{it!==ship&&it.placed&&!it.departed&&isEast(it)}.sumOf{it.length+safetyGapM}
-        if(used+ship.length>150){toast("ISTOK: slobodno ${max(0,150-used)} m");return null}
-        val ppm=((width.toFloat()-(gatX+30f)-20f)/150f).coerceAtLeast(.8f)
+        if(used+ship.length>188){toast("ISTOK: slobodno ${max(0,188-used)} m");return null}
+        val ppm=((width.toFloat()-(gatX+30f)-20f)/188f).coerceAtLeast(.8f)
         return Triple(gatX+30f+(used+ship.length/2f)*ppm,145f,0)
     }
     private fun gatAutoTarget(ship:Ship):Triple<Float,Float,Int>?{
         val l=ships.filter{it!==ship&&it.placed&&!it.departed&&isGat(it)&&it.x<gatX+15f}.sumOf{it.length+safetyGapM}
         val r=ships.filter{it!==ship&&it.placed&&!it.departed&&isGat(it)&&it.x>=gatX+15f}.sumOf{it.length+safetyGapM}
-        val left=when{l+ship.length<=120&&r+ship.length<=120->l<=r;l+ship.length<=120->true;r+ship.length<=120->false;else->{toast("GAT: nema mjesta za ${ship.length} m");return null}}
+        val left=when{l+ship.length<=125&&r+ship.length<=110->l<=r;l+ship.length<=125->true;r+ship.length<=110->false;else->{toast("GAT: nema mjesta za ${ship.length} m");return null}}
         val used=if(left)l else r
-        return Triple(if(left)gatX-12f else gatX+42f,132f+(used+ship.length/2f)*1.05f,90)
+        val baseY=if(left)150f+32f*1.05f else 150f
+        return Triple(if(left)gatX-12f else gatX+42f,baseY+(used+ship.length/2f)*1.05f,90)
     }
     private fun isEast(s:Ship)=s.y in 118f..190f&&s.x>gatX+30f
     private fun isGat(s:Ship)=s.x in (gatX-50f)..(gatX+80f)&&s.y in 118f..390f
@@ -746,9 +762,9 @@ class HarborView(private val ctx:Context): View(ctx) {
                 val maxLen=when(berth){in 1..3->45;in 4..8->65;else->110}
                 return s.length<=maxLen
             }
-            if(s.x>gatX+30f)return s.length<=150
+            if(s.x>gatX+30f)return s.length<=188
         }
-        if(s.x in (gatX-45f)..(gatX+75f) && s.y in 115f..390f)return s.length<=120
+        if(s.x in (gatX-45f)..(gatX+75f) && s.y in 115f..390f)return s.length<=if(s.x<gatX+15f)125 else 110
         return false
     }
 
