@@ -27,7 +27,19 @@ class HarborView(private val ctx:Context): View(ctx){
   Ship("Blue Star","Katamaran",42,3,"VEZ"), Ship("Tender 07","Tender",8,4,"PONTON"),
   Ship("Adriatic Bulk","Rasuti teret",104,12,"VEZ")
  )
- private val h=Handler(Looper.getMainLooper()); private val tick=object:Runnable{override fun run(){if(running&&secs>0){secs--; if(secs==0)finishRound(); invalidate()}h.postDelayed(this,1000)}}
+private val h = Handler(Looper.getMainLooper())
+
+private val tick = object : Runnable {
+    override fun run() {
+        if (running && secs > 0) {
+            secs--
+            invalidate()
+        }
+        if (running && secs > 0) {
+            h.postDelayed(this, 1000)
+        }
+    }
+}
  init{isFocusable=true;h.post(tick);post{askCaptain()}}
 
  private fun askCaptain(){val e=EditText(ctx).apply{hint="Ime i prezime kapetana";setText(prefs.getString("lastCaptain",""))};AlertDialog.Builder(ctx).setTitle("KAPETAN LUKE").setMessage("Upiši ime i prezime kapetana luke").setView(e).setPositiveButton("DALJE"){_,_->captain=e.text.toString().trim().ifBlank{"Kapetan"};prefs.edit().putString("lastCaptain",captain).apply();showMail()}.setCancelable(false).show()}
