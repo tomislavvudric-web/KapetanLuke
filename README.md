@@ -1,11 +1,10 @@
-# Kapetan Luke v0.8.6
+# Kapetan Luke v0.8.7
 
-Dorade prema testiranju:
-- nove ture su sporije; razmak se mijenja u Postavkama (30–900 s), zadano 120 s
-- P1–P6 popravljeni prema stvarnoj duljini pontona; tender krma lijevo, pramac desno
-- istočna/kosa obala 188 m; brodovi se automatski okreću i slažu uz kosinu
-- odlazak broda više ne otvara veliki prozor; mala poruka je pri dnu
-- DOK zahtjevi su rjeđi
-- INFO prikazuje V/P/G/I/D kapacitete i sve aktivne brodove: ime, duljina, lokacija i broj dana
-- gat INFO koristi 125 + 110 = 235 m korisnog veza
-- grafika brodova dobila je izraženiju siluetu/sjenu i čitljivije stanje
+- Prva tura: 12 brodova, selektivno prihvaćanje
+- Gumb NOVA TURA: ručno pošalji novu turu u bilo kojem trenutku
+- Sljedeće ture: 6–9 brodova, s više kandidata za dokove
+- INFO O VEZOVIMA I BRODOVIMA: ime, tip, dužina, vez/dok, planirani dani i odlazak
+- P1–P6 koriste trajni kod veza pa tender više ne nestaje iz evidencije
+- Ponton odmaknut od V1; dokovi poravnati i približeni
+- D1/D2/D3 imaju više brodova u katalogu i češće dolaze u turama
+- Razmak automatskih tura podesiv 60–900 s, zadano 180 s
