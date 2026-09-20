@@ -12,7 +12,7 @@ data class Ship(
     val name:String, val type:String, val length:Int, val days:Int, val target:String,
     var x:Float=0f, var y:Float=0f, var rot:Int=0, var accepted:Boolean=false,
     var placed:Boolean=false, var scored:Boolean=false, var departed:Boolean=false,
-    var placedAt:Long=0L, var departureAt:Long=0L
+    var placedAt:Long=0L, var departureAt:Long=0L, var berthDeadlineAt:Long=0L
 )
 
 class MainActivity: Activity() {
@@ -88,6 +88,7 @@ class HarborView(private val ctx:Context): View(ctx) {
             if(running){
                 if(secs>0) secs--
                 checkDepartures()
+                checkIncomingWave()
                 if(secs<=0) finishRound()
                 invalidate()
             }
@@ -123,7 +124,7 @@ class HarborView(private val ctx:Context): View(ctx) {
                 captain=e.text.toString().trim().ifBlank{"Kapetan"}
                 prefs.edit().putString("lastCaptain",captain).apply()
                 toast("Pozdrav, kapetane $captain! ⚓")
-                nextWaveAt=SystemClock.elapsedRealtime()+45000L
+                nextWaveAt=SystemClock.elapsedRealtime()+30000L
                 showMail()
             }.setCancelable(false).show()
     }
@@ -158,7 +159,11 @@ class HarborView(private val ctx:Context): View(ctx) {
             }
             .setPositiveButton("POTVRDI ODABIR"){_,_->
                 var rejected=0
-                ships.forEachIndexed{i,ship-> ship.accepted=checks[i].isChecked; if(!ship.accepted)rejected++ }
+                ships.forEachIndexed{i,ship->
+                    ship.accepted=checks[i].isChecked
+                    if(ship.accepted) ship.berthDeadlineAt=SystemClock.elapsedRealtime()+max(25,ship.days*daySeconds)*1000L
+                    else rejected++
+                }
                 if(rejected>0)score-=rejected*rejectPenalty
                 accepted=ships.any{it.accepted}
                 layoutWaitingShips();running=true
@@ -167,10 +172,10 @@ class HarborView(private val ctx:Context): View(ctx) {
     }
 
     private fun layoutWaitingShips(){
-        val base=height*0.78f
+        val base=500f
         ships.filter{it.accepted&&!it.departed}.forEachIndexed{i,s->
-            s.x=80f+i*(width-160f)/max(1,ships.size-1)
-            s.y=base+(i%2)*52f
+            s.x=120f+(i%4)*72f
+            s.y=base+(i/4)*58f
         }
     }
 
@@ -179,7 +184,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         if(width==0)return
         val W=width.toFloat(); val H=height.toFloat()
 
-        c.drawColor(Color.rgb(20,92,124))
+        c.drawColor(Color.rgb(8,70,101))
         // diskretne linije mora daju moderniji osjećaj dubine
         p.color=Color.argb(35,210,240,248);p.strokeWidth=1f
         for(yy in 280..height step 70) c.drawLine(0f,yy.toFloat(),W,yy.toFloat(),p)
@@ -188,13 +193,13 @@ class HarborView(private val ctx:Context): View(ctx) {
         c.translate(panX,panY)
         c.scale(scale,scale)
 
-        val worldW=W/scale
+        val worldW=W
         westEnd=worldW*.60f
         pontX=westEnd+8f
         gatX=pontX+55f
 
         // Kopno je namjerno usko - vezivanje uz sami rub obale.
-        p.color=Color.rgb(194,184,151)
+        p.color=Color.rgb(173,164,139)
         c.drawRect(0f,68f,worldW,118f,p)
 
         val start=18f
@@ -211,7 +216,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         c.drawText("4–8: 45–65 m",westEnd*.40f,108f,t)
         c.drawText("1–3: do 45 m",westEnd*.77f,108f,t)
 
-        p.color=Color.rgb(142,151,148)
+        p.color=Color.rgb(102,118,121)
         c.drawRect(pontX,118f,pontX+18f,250f,p)
         t.textSize=11f;c.drawText("PONTON",pontX-15f,88f,t)
 
@@ -222,7 +227,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         c.drawRect(gatX+30f,68f,worldW,118f,p)
         t.textSize=13f;c.drawText("ISTOČNA OBALA 150 m",gatX+45f,98f,t)
 
-        p.color=Color.rgb(119,134,136)
+        p.color=Color.rgb(83,101,108)
         c.drawRoundRect(RectF(gatX-150f,380f,gatX-118f,565f),6f,6f,p)
         c.drawRoundRect(RectF(gatX-82f,425f,gatX-50f,565f),6f,6f,p)
         c.drawRoundRect(RectF(gatX,380f,gatX+30f,610f),6f,6f,p)
@@ -465,12 +470,13 @@ class HarborView(private val ctx:Context): View(ctx) {
                 pendingShips.forEachIndexed{i,b->
                     b.accepted=checked[i]
                     if(checked[i]){
-                        b.x=95f+(i%4)*78f;b.y=285f+(i/4)*75f
+                        b.x=120f+(i%4)*72f;b.y=500f+(i/4)*58f
+                        b.berthDeadlineAt=SystemClock.elapsedRealtime()+max(25,b.days*daySeconds)*1000L
                         ships.add(b)
                     }else score-=rejectPenalty
                 }
                 pendingShips.clear();pendingWave=false
-                nextWaveAt=SystemClock.elapsedRealtime()+60000L
+                nextWaveAt=SystemClock.elapsedRealtime()+40000L
                 invalidate()
             }
             .setNegativeButton("KASNIJE",null)
@@ -505,10 +511,12 @@ class HarborView(private val ctx:Context): View(ctx) {
             append("• Mali 60 m: $dock60 / 60 m • slobodno ${60-dock60} m\\n")
             append("• Veliki 140 m: $dock140 / 140 m • slobodno ${140-dock140} m\\n")
         }
-        AlertDialog.Builder(ctx).setTitle("HARBOUR CONTROL").setMessage(msg)
+        val infoDialog=AlertDialog.Builder(ctx).setTitle("HARBOUR CONTROL • PREGLED LUKE").setMessage(msg)
             .setPositiveButton("NASTAVI",null)
-            .apply{if(pendingWave)setNeutralButton("OTVORI NOVI ZAHTJEV"){_,_->showIncomingWave()}}
-            .show()
+        if(pendingWave){
+            infoDialog.setNeutralButton("OTVORI NOVI ZAHTJEV"){_,_->showIncomingWave()}
+        }
+        infoDialog.show()
     }
 
 
@@ -518,7 +526,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         val hx=if(s.rot%180==0)halfLong else halfWide
         val hy=if(s.rot%180==0)halfWide else halfLong
         val left=s.x-hx;val right=s.x+hx;val top=s.y-hy
-        if(top<255f)return true
+        if(top<118f)return true
         if(left<22f)return true
         val worldW=width.toFloat().coerceAtLeast(800f)
         if(right>worldW-22f)return true
@@ -541,6 +549,7 @@ class HarborView(private val ctx:Context): View(ctx) {
     }
 
     private fun placementProblem(s:Ship):String?{
+        if(hullTouchesLand(s))return "⛔ Trup broda prelazi preko kopna. Obala je čvrsta granica."
         if(s.target!="DOK" && collides(s))return "⛔ Mjesto je zauzeto drugim brodom."
         if(s.target=="PONTON"){
             if(s.type!="Tender" || s.length>8)return "⛔ Ponton je samo za tendere do 8 m."
@@ -567,10 +576,19 @@ class HarborView(private val ctx:Context): View(ctx) {
             val idx=((s.x-18f)/((westEnd-18f)/14f)).toInt().coerceIn(0,13);val berth=14-idx
             val maxLen=when(berth){in 1..3->45;in 4..8->65;else->110}
             if(s.length>maxLen)return "⛔ Vez $berth prima brodove do $maxLen m, a brod ima ${s.length} m.\nPokušaj odgovarajući veći vez."
+            if(s.rot%180!=90)return "⛔ Zapadna obala: brod mora biti u četverovezu KRMOM prema obali."
             return null
         }
-        if(s.y in 105f..185f && s.x>gatX+30f){if(s.length>150)return "⛔ Istočna obala ima 150 m raspoložive dužine.";return null}
-        if(s.x in (gatX-45f)..(gatX+75f) && s.y in 115f..390f){if(s.length>120)return "⛔ Gat ima 120 m korisne dužine po strani.";return null}
+        if(s.y in 105f..185f && s.x>gatX+30f){
+            if(s.length>150)return "⛔ Istočna obala ima 150 m raspoložive dužine."
+            if(s.rot%180!=0)return "⛔ Istočna obala: brod se veže BOČNO, paralelno s obalom."
+            return null
+        }
+        if(s.x in (gatX-45f)..(gatX+75f) && s.y in 115f..390f){
+            if(s.length>120)return "⛔ Gat ima 120 m korisne dužine po strani."
+            if(s.rot%180!=90)return "⛔ Gat: brod se veže BOČNO, paralelno s gatom."
+            return null
+        }
         return "⛔ Brod nije dovoljno blizu valjanog veza, gata ili istočne obale."
     }
 
@@ -604,6 +622,12 @@ class HarborView(private val ctx:Context): View(ctx) {
 
     private fun checkDepartures(){
         val now=SystemClock.elapsedRealtime()
+        val missed=ships.filter{it.accepted&&!it.placed&&!it.departed&&it.berthDeadlineAt>0&&now>=it.berthDeadlineAt}
+        missed.forEach{s->
+            s.departed=true
+            score-=failPenalty
+            toast("${s.name} otišao bez veza • -$failPenalty")
+        }
         val due=ships.filter{it.placed&&!it.departed&&it.departureAt>0&&now>=it.departureAt}
         due.forEach{s->
             // Jednostavna provjera blokade: vrlo blizak brod zadržava odlazak.
