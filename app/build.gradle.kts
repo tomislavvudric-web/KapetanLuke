@@ -1,5 +1,26 @@
-plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
 
-android { namespace = "hr.kapetanluke.game"; compileSdk = 35
-    defaultConfig { applicationId = "hr.kapetanluke.game"; minSdk = 26; targetSdk = 35; versionCode = 2; versionName = "0.2" }
+android {
+    namespace = "hr.kapetanluke.game"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "hr.kapetanluke.game"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 2
+        versionName = "0.2"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 }
