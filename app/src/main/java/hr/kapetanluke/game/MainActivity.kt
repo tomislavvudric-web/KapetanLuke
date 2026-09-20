@@ -414,7 +414,8 @@ class HarborView(private val ctx:Context): View(ctx) {
                     val oldX=ship.x;val oldY=ship.y
                     ship.x+=dx;ship.y+=dy
                     if(hullTouchesLand(ship)){ship.x=oldX;ship.y=oldY}
-                } ?: if(panning){panX+=e.x-lx;panY+=e.y-ly;clampPan()}
+                }
+                if(selected==null && panning){panX+=e.x-lx;panY+=e.y-ly;clampPan()}
                 lx=e.x;ly=e.y;invalidate();return true
             }
             MotionEvent.ACTION_UP->{
