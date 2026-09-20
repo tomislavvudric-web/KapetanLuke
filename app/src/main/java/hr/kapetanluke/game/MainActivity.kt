@@ -330,8 +330,8 @@ class HarborView(private val ctx:Context): View(ctx) {
             moveTo(s.x-len/2,s.y) // krma
             lineTo(s.x-len*.40f,s.y-wid*.48f)
             lineTo(s.x+len*.28f,s.y-wid*.48f)
-            quadraticBezierTo(s.x+len*.47f,s.y-wid*.36f,s.x+len/2,s.y) // pramac
-            quadraticBezierTo(s.x+len*.47f,s.y+wid*.36f,s.x+len*.28f,s.y+wid*.48f)
+            quadTo(s.x+len*.47f,s.y-wid*.36f,s.x+len/2,s.y) // pramac
+            quadTo(s.x+len*.47f,s.y+wid*.36f,s.x+len*.28f,s.y+wid*.48f)
             lineTo(s.x-len*.40f,s.y+wid*.48f);close()
         }
         p.color=when(s.type){"Jahta"->Color.rgb(247,249,250);"Supply"->Color.rgb(224,126,39);"Tender"->Color.rgb(244,203,55);"Katamaran"->Color.rgb(240,244,246);"Rasuti teret"->Color.rgb(105,119,128);else->Color.rgb(226,233,236)}
