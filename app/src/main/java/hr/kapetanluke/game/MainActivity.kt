@@ -6,6 +6,8 @@ import android.graphics.*
 import android.os.*
 import android.view.*
 import android.widget.*
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import kotlin.math.*
 
 data class Ship(
@@ -61,6 +63,8 @@ class HarborView(private val ctx:Context): View(ctx) {
     private var pendingShips=mutableListOf<Ship>()
     private val longPressMs=550L
     private val hudH=250f
+    private var tts:TextToSpeech?=null
+    private val autoMoving=mutableSetOf<String>()
 
     private val catalog=listOf(
         Ship("MY Aurora","Jahta",82,6,"VEZ"), Ship("MY Solis","Jahta",44,4,"VEZ"),
@@ -106,6 +110,16 @@ class HarborView(private val ctx:Context): View(ctx) {
 
     init{
         isFocusable=true
+        tts=TextToSpeech(ctx){status->
+            if(status==TextToSpeech.SUCCESS){
+                val hr=Locale("hr","HR")
+                val result=tts?.setLanguage(hr)
+                if(result==TextToSpeech.LANG_MISSING_DATA || result==TextToSpeech.LANG_NOT_SUPPORTED){
+                    tts?.language=Locale.getDefault()
+                }
+                tts?.setSpeechRate(0.92f)
+            }
+        }
         h.post(tick)
         newShipSet()
         post{askCaptain()}
@@ -123,7 +137,9 @@ class HarborView(private val ctx:Context): View(ctx) {
             .setPositiveButton("DALJE"){_,_->
                 captain=e.text.toString().trim().ifBlank{"Kapetan"}
                 prefs.edit().putString("lastCaptain",captain).apply()
-                toast("Pozdrav, kapetane $captain! ⚓")
+                val firstName=captain.split(" ").firstOrNull()?.ifBlank{"kapetane"}?:"kapetane"
+                tts?.speak("Dobro došao kapetane $firstName. Krenimo na posao vezivanja brodova. Sretno!",TextToSpeech.QUEUE_FLUSH,null,"welcome")
+                toast("Pozdrav, kapetane $firstName! ⚓")
                 nextWaveAt=SystemClock.elapsedRealtime()+30000L
                 showMail()
             }.setCancelable(false).show()
@@ -394,7 +410,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         when(e.actionMasked){
             MotionEvent.ACTION_DOWN->{
                 down=e.eventTime;lx=e.x;ly=e.y;movedSelected=false
-                val hit=ships.filter{it.accepted&&!it.departed}.minByOrNull{
+                val hit=ships.filter{it.accepted&&!it.departed&&it.name !in autoMoving}.minByOrNull{
                     hypot((it.x-wx).toDouble(),(it.y-wy).toDouble())
                 }?.takeIf{hypot((it.x-wx).toDouble(),(it.y-wy).toDouble()) < 34/scale}
                 if(hit?.placed==true){
@@ -426,7 +442,7 @@ class HarborView(private val ctx:Context): View(ctx) {
             MotionEvent.ACTION_UP->{
                 if(longPressArmed){longPressArmed=false;longPressShip=null;return true}
                 selected?.let{ship->
-                    if(!movedSelected && !ship.placed && e.eventTime-down<300)ship.rot=(ship.rot+90)%360
+                    if(!movedSelected && !ship.placed && e.eventTime-down<300)showMooringCommand(ship)
                     else if(movedSelected){
                         val wasPlaced=ship.placed
                         validatePlacement(ship)
@@ -438,6 +454,110 @@ class HarborView(private val ctx:Context): View(ctx) {
             MotionEvent.ACTION_CANCEL->{selected=null;panning=false;return true}
         }
         return true
+    }
+
+    private fun showMooringCommand(ship:Ship){
+        if(ship.departed || !ship.accepted || ship.placed || ship.name in autoMoving)return
+        val input=EditText(ctx).apply{
+            hint="npr. Vez 5, Dok 1, Gat, Istočna obala, Ponton"
+            textSize=18f
+            setSingleLine(true)
+        }
+        val box=LinearLayout(ctx).apply{
+            orientation=LinearLayout.VERTICAL
+            setPadding(34,12,34,0)
+            addView(TextView(ctx).apply{
+                text="${ship.name} • ${ship.length} m • nalog: ${ship.target}\nUpiši odredište ili odaberi RUČNO."
+                textSize=17f
+            })
+            addView(input)
+        }
+        AlertDialog.Builder(ctx)
+            .setTitle("⚓ KAPETANOVA NAREDBA")
+            .setView(box)
+            .setPositiveButton("POŠALJI BROD"){_,_->
+                executeMooringCommand(ship,input.text.toString())
+            }
+            .setNeutralButton("OKRENI 90°"){_,_->ship.rot=(ship.rot+90)%360;invalidate()}
+            .setNegativeButton("RUČNO",null)
+            .show()
+    }
+
+    private fun executeMooringCommand(ship:Ship,raw:String){
+        val cmd=raw.trim().lowercase(Locale("hr","HR")).replace("broj","").replace("br.","").replace("br","")
+        if(cmd.isBlank()){toast("Upiši odredište, npr. Vez 5");return}
+        val start=18f
+        val bw=(westEnd-start)/14f
+        val target:Triple<Float,Float,Int>?=when{
+            cmd.startsWith("vez") -> {
+                val n=Regex("\\d+").find(cmd)?.value?.toIntOrNull()
+                if(n==null || n !in 1..14){toast("Vez mora biti od 1 do 14");null}
+                else{
+                    val maxLen=when(n){in 1..3->45;in 4..8->65;else->110}
+                    if(ship.length>maxLen){toast("Vez $n prima do $maxLen m • ${ship.name} ima ${ship.length} m");null}
+                    else{
+                        val cx=start+(14-n+0.5f)*bw
+                        val halfLong=max(18f,ship.length*0.46f)
+                        Triple(cx,(122f+halfLong).coerceAtMost(182f),90)
+                    }
+                }
+            }
+            cmd.startsWith("dok") -> {
+                val n=Regex("\\d+").find(cmd)?.value?.toIntOrNull()
+                when(n){
+                    1 -> if(ship.length<=85) Triple(gatX-134f,475f,90) else null
+                    2 -> if(ship.length<=60) Triple(gatX-66f,495f,90) else null
+                    3 -> if(ship.length<=140) Triple(gatX+15f,490f,90) else null
+                    else -> null
+                }.also{if(it==null)toast("Dok nije valjan ili je brod predug")}
+            }
+            cmd.contains("isto") -> Triple((gatX+30f+width.toFloat())/2f,160f,0)
+            cmd.contains("gat") -> Triple(gatX-20f,260f,90)
+            cmd.contains("ponton") -> if(ship.type=="Tender" && ship.length<=8) Triple(pontX+32f,205f,90) else null
+            else -> null
+        }
+        if(target==null){if(!cmd.startsWith("vez")&&!cmd.startsWith("dok"))toast("Ne prepoznajem naredbu. Probaj: Vez 5, Dok 1, Gat, Istočna obala ili Ponton");return}
+        val oldX=ship.x;val oldY=ship.y;val oldRot=ship.rot
+        ship.x=target.first;ship.y=target.second;ship.rot=target.third
+        val problem=placementProblem(ship)
+        ship.x=oldX;ship.y=oldY;ship.rot=oldRot
+        if(problem!=null){
+            AlertDialog.Builder(ctx).setTitle("NAREDBA NIJE MOGUĆA").setMessage(problem).setPositiveButton("U REDU",null).show()
+            return
+        }
+        animateShipTo(ship,target.first,target.second,target.third)
+    }
+
+    private fun animateShipTo(ship:Ship,tx:Float,ty:Float,trot:Int){
+        if(ship.name in autoMoving)return
+        autoMoving.add(ship.name)
+        val sx=ship.x;val sy=ship.y
+        // Prvo prema sigurnoj zoni mora, zatim prema odredištu. Time brod ne presijeca obalu.
+        val safeY=max(330f,sy)
+        val points=listOf(Pair(sx,safeY),Pair(tx,safeY),Pair(tx,ty))
+        var leg=0
+        fun runLeg(){
+            if(leg>=points.size){
+                ship.x=tx;ship.y=ty;ship.rot=trot
+                autoMoving.remove(ship.name)
+                validatePlacement(ship)
+                invalidate();return
+            }
+            val ax=ship.x;val ay=ship.y;val bx=points[leg].first;val by=points[leg].second
+            var step=0;val steps=18
+            val r=object:Runnable{
+                override fun run(){
+                    step++
+                    val q=step.toFloat()/steps
+                    ship.x=ax+(bx-ax)*q;ship.y=ay+(by-ay)*q
+                    invalidate()
+                    if(step<steps)h.postDelayed(this,24) else{leg++;runLeg()}
+                }
+            }
+            h.post(r)
+        }
+        toast("${ship.name} • izvršavam naredbu")
+        runLeg()
     }
 
     private fun clampPan(){
@@ -721,5 +841,6 @@ class HarborView(private val ctx:Context): View(ctx) {
     override fun onDetachedFromWindow(){
         super.onDetachedFromWindow()
         h.removeCallbacksAndMessages(null)
+        tts?.stop();tts?.shutdown();tts=null
     }
 }
