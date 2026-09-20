@@ -429,8 +429,9 @@ class HarborView(private val ctx:Context): View(ctx) {
                     val held=e.eventTime-longPressStart
                     val drift=hypot((e.x-lx).toDouble(),(e.y-ly).toDouble())
                     if(held>=longPressMs && drift<42){
-                        selected=longPressShip;longPressArmed=false
-                        selected?.let{toast("${it.name} • premještanje omogućeno")}
+                        val ship=longPressShip
+                        longPressArmed=false; longPressShip=null; selected=null
+                        ship?.let{showChangeBerth(it)}
                     }else if(drift>=42){longPressArmed=false;longPressShip=null}
                 }
                 selected?.let{ship->
@@ -474,6 +475,28 @@ class HarborView(private val ctx:Context): View(ctx) {
             .setNeutralButton("OKRENI 90°"){_,_->ship.rot=(ship.rot+90)%360;invalidate()}
             .setNegativeButton("RUČNO",null).show()
     }
+    private fun showChangeBerth(ship:Ship){
+        if(ship.departed || !ship.placed)return
+        val current=locationCode(ship)
+        val input=EditText(ctx).apply{hint="V5 / D1 / I / G1 / P2";textSize=22f;setSingleLine(true);setPadding(22,18,22,18)}
+        val box=LinearLayout(ctx).apply{
+            orientation=LinearLayout.VERTICAL;setPadding(34,16,34,8)
+            addView(TextView(ctx).apply{text="${ship.name} • ${ship.length} m\nTrenutno: $current";textSize=19f})
+            addView(TextView(ctx).apply{text="Odaberi novi vez. Brod će se sam okrenuti i namjestiti.\nV1–V14 • D1–D3 • I • G1 • P1–P6";textSize=15f;setPadding(0,12,0,10)})
+            addView(input)
+        }
+        AlertDialog.Builder(ctx).setTitle("⚓ PROMIJENI VEZ").setView(box)
+            .setPositiveButton("PREMJESTI"){_,_->
+                val oldX=ship.x;val oldY=ship.y;val oldRot=ship.rot;val oldPlaced=ship.placed
+                ship.placed=false
+                val before=autoMoving.size
+                executeMooringCommand(ship,input.text.toString())
+                if(ship.name !in autoMoving){ship.x=oldX;ship.y=oldY;ship.rot=oldRot;ship.placed=oldPlaced}
+                else score-=movePenalty
+            }
+            .setNegativeButton("ODUSTANI",null).show()
+    }
+
     private fun executeMooringCommand(ship:Ship,raw:String){
         val cmd=raw.trim().uppercase(Locale("hr","HR")).replace(" ","")
         if(cmd.isBlank()){toast("Upiši V5, D1, I, G1 ili P2");return}
@@ -483,7 +506,7 @@ class HarborView(private val ctx:Context): View(ctx) {
                 val n=cmd.drop(1).toInt();val ml=when(n){in 1..3->45;in 4..8->65;else->110}
                 if(ships.any{it!==ship&&it.placed&&!it.departed&&berthNumber(it)==n}){toast("V$n je zauzet");null}
                 else if(ship.length>ml){toast("V$n prima do $ml m");null}
-                else Triple(start+(14-n+.5f)*bw,118f+max(18f,ship.length*.525f)+5f,90)
+                else Triple(start+(14-n+.5f)*bw,118f+max(18f,ship.length*.525f)+5f,270)
             }
             Regex("D[123]").matches(cmd)->dockAutoTarget(ship,cmd.drop(1).toInt())
             cmd=="I"||cmd=="I1"->eastAutoTarget(ship)
@@ -492,7 +515,7 @@ class HarborView(private val ctx:Context): View(ctx) {
                 val n=cmd.drop(1).toInt()
                 if(ship.type!="Tender"||ship.length>8){toast("Ponton je za tendere do 8 m");null}
                 else if(ships.any{it!==ship&&it.placed&&!it.departed&&pontoonSlot(it)==n}){toast("P$n je zauzet");null}
-                else Triple(pontX+30f,132f+(n-1)*22f,90)
+                else Triple(pontX+30f,132f+(n-1)*22f,180)
             }
             else->null
         }
@@ -610,23 +633,35 @@ class HarborView(private val ctx:Context): View(ctx) {
         val now=SystemClock.elapsedRealtime()
         val waiting=ships.filter{it.accepted&&!it.placed&&!it.departed}
         val inPort=ships.filter{it.accepted&&it.placed&&!it.departed}.sortedBy{it.departureAt}
-        val root=LinearLayout(ctx).apply{orientation=LinearLayout.VERTICAL;setPadding(26,20,26,20);setBackgroundColor(Color.rgb(7,27,42))}
-        fun title(x:String)=TextView(ctx).apply{text=x;textSize=19f;setTextColor(Color.WHITE);typeface=Typeface.DEFAULT_BOLD;setPadding(0,10,0,6)}
-        fun line(x:String)=TextView(ctx).apply{text=x;textSize=15f;setTextColor(Color.rgb(190,222,232));setPadding(0,4,0,4)}
-        root.addView(title("⚓ HARBOUR CONTROL • PREGLED LUKE"))
-        val next=if(pendingWave)"NOVI ZAHTJEV ČEKA" else if(nextWaveAt>now)"${(nextWaveAt-now)/1000} s" else "USKORO"
-        root.addView(line("U luci ${inPort.size} • Čeka ${waiting.size} • Sljedeći zahtjev: $next"))
-        root.addView(title("ČEKA SMJEŠTAJ"));if(waiting.isEmpty())root.addView(line("✓ Nema brodova na čekanju"))
-        waiting.forEach{root.addView(line("• ${it.name} • ${it.length} m • ${shortTarget(it)}"))}
-        root.addView(title("ZAUZETOST VEZOVA"))
-        for(n in 1..14){val q=inPort.firstOrNull{berthNumber(it)==n};root.addView(line(if(q==null)"V$n ✓ slobodan" else "V$n ● ${q.name} ${q.length} m • ${timeLeft(q,now)}"))}
-        val east=inPort.filter{isEast(it)};val gat=inPort.filter{isGat(it)}
-        root.addView(line("I • ${east.sumOf{it.length}}/150 m • ${east.size} brodova"))
-        root.addView(line("G1 • ${gat.sumOf{it.length}}/240 m • ${gat.size} brodova"))
-        for(n in 1..3){val cap=when(n){1->85;2->60;else->140};val ds=inPort.filter{dockCommandId(it)==n};root.addView(line("D$n • ${ds.sumOf{it.length}}/$cap m • ${ds.size} brodova"))}
-        root.addView(line("PONTON • ${inPort.count{it.target=="PONTON"}}/6 tendera"))
-        root.addView(title("SLJEDEĆI ODLASCI"));inPort.take(12).forEach{root.addView(line("• ${it.name} • ${locationCode(it)} • ${timeLeft(it,now)}"))}
-        val d=Dialog(ctx);d.setContentView(ScrollView(ctx).apply{addView(root)});d.show();d.window?.setLayout((width*.94f).toInt(),(height*.86f).toInt())
+        val scroll=ScrollView(ctx)
+        val root=LinearLayout(ctx).apply{orientation=LinearLayout.VERTICAL;setPadding(28,22,28,26);setBackgroundColor(Color.rgb(7,27,42))}
+        fun title(x:String)=TextView(ctx).apply{text=x;textSize=20f;setTextColor(Color.WHITE);typeface=Typeface.DEFAULT_BOLD;setPadding(0,14,0,8)}
+        fun line(x:String)=TextView(ctx).apply{text=x;textSize=16f;setTextColor(Color.rgb(190,222,232));setPadding(12,8,12,8)}
+        fun shipRow(prefix:String,q:Ship?):View{
+            return TextView(ctx).apply{
+                text=if(q==null)"$prefix   🟢 SLOBODAN" else "$prefix   🔴 ${q.name} • ${q.length} m • ${timeLeft(q,now)}"
+                textSize=16f;setTextColor(if(q==null)Color.rgb(130,225,170) else Color.WHITE)
+                setPadding(14,10,14,10);setBackgroundColor(Color.rgb(13,45,64))
+                if(q!=null)setOnClickListener{showChangeBerth(q)}
+            }
+        }
+        root.addView(title("⚓ INFO O VEZOVIMA"))
+        val next=if(pendingWave)"NOVI ZAHTJEV ČEKA" else if(nextWaveAt>now)"za ${(nextWaveAt-now)/1000} s" else "USKORO"
+        root.addView(line("U luci: ${inPort.size}   •   Čeka vez: ${waiting.size}   •   Novi zahtjev: $next"))
+        root.addView(line("Dodirni zauzeti vez/brod za PROMJENU VEZA."))
+        root.addView(title("ZAPADNA OBALA • V1–V14"))
+        for(n in 1..14)root.addView(shipRow("V$n",inPort.firstOrNull{berthNumber(it)==n}))
+        root.addView(title("PONTON • P1–P6"))
+        for(n in 1..6)root.addView(shipRow("P$n",inPort.firstOrNull{pontoonSlot(it)==n && it.target=="PONTON"}))
+        root.addView(title("GAT • G1"))
+        val gat=inPort.filter{isGat(it)};val gatUsed=gat.sumOf{it.length};root.addView(line("G1   ${gatUsed}/240 m • slobodno ${max(0,240-gatUsed)} m • ${gat.size} brodova"));gat.forEach{root.addView(shipRow("↳",it))}
+        root.addView(title("ISTOČNA OBALA • I"))
+        val east=inPort.filter{isEast(it)};val eastUsed=east.sumOf{it.length};root.addView(line("I   ${eastUsed}/150 m • slobodno ${max(0,150-eastUsed)} m • ${east.size} brodova"));east.forEach{root.addView(shipRow("↳",it))}
+        root.addView(title("PLUTAJUĆI DOKOVI"))
+        for(n in 1..3){val cap=when(n){1->85;2->60;else->140};val ds=inPort.filter{dockCommandId(it)==n};val used=ds.sumOf{it.length};root.addView(line("D$n   $used/$cap m • slobodno ${max(0,cap-used)} m • ${ds.size} brodova"));ds.forEach{root.addView(shipRow("↳",it))}}
+        root.addView(title("ČEKA SMJEŠTAJ"));if(waiting.isEmpty())root.addView(line("✓ Nema brodova na čekanju")) else waiting.forEach{q->root.addView(TextView(ctx).apply{text="• ${q.name} • ${q.length} m • ${shortTarget(q)}";textSize=16f;setTextColor(Color.WHITE);setPadding(14,10,14,10);setOnClickListener{showMooringCommand(q)}})}
+        scroll.addView(root)
+        val d=Dialog(ctx);d.setContentView(scroll);d.show();d.window?.setLayout((resources.displayMetrics.widthPixels*.96f).toInt(),(resources.displayMetrics.heightPixels*.90f).toInt())
     }
     private fun timeLeft(s:Ship,now:Long):String{val q=max(0L,(s.departureAt-now+999)/1000);return "odlazak %02d:%02d".format(q/60,q%60)}
     private fun locationCode(s:Ship):String{val v=berthNumber(s);if(v>0)return "V$v";val d=dockCommandId(s);if(d>0)return "D$d";if(isEast(s))return "I";if(isGat(s))return "G1";if(s.target=="PONTON")return "P${pontoonSlot(s)}";return s.target}
@@ -687,7 +722,7 @@ class HarborView(private val ctx:Context): View(ctx) {
             val idx=((s.x-18f)/((westEnd-18f)/14f)).toInt().coerceIn(0,13);val berth=14-idx
             val maxLen=when(berth){in 1..3->45;in 4..8->65;else->110}
             if(s.length>maxLen)return "⛔ Vez $berth prima brodove do $maxLen m, a brod ima ${s.length} m.\nPokušaj odgovarajući veći vez."
-            if(s.rot%180!=90)return "⛔ Zapadna obala: brod mora biti u četverovezu KRMOM prema obali."
+            if(((s.rot%360)+360)%360!=270)return "⛔ Zapadna obala: KRMA mora biti prema obali, pramac prema moru."
             return null
         }
         if(s.y in 105f..185f && s.x>gatX+30f){
