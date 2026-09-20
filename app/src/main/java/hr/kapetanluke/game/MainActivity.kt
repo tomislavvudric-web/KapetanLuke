@@ -251,6 +251,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         p.color=Color.argb(220,5,18,30);c.drawRoundRect(RectF(14f,H-46f,W-14f,H-8f),18f,18f,p)
         t.textSize=14f;t.color=Color.WHITE
         c.drawText("Približi kartu s 2 prsta, namjesti vez, zatim uhvati brod s 1 prstom.",28f,H-21f,t)
+    }
 
     private fun drawButton(c:Canvas,r:RectF,label:String){
         p.color=Color.rgb(28,113,139)

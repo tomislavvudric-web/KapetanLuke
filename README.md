@@ -9,3 +9,7 @@ Glavne izmjene:
 - jasne poruke zašto brod ne može biti privezan
 - osvježena paleta mora, obale, dokova i brodova
 - reset generira novu kombinaciju brodova
+
+
+## v0.6.1
+- Ispravljena nedostajuća završna zagrada u onDraw(), koja je uzrokovala Kotlin compilation error i lanac `private is not applicable to local function` grešaka.
