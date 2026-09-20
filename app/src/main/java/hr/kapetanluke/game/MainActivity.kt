@@ -52,6 +52,14 @@ class HarborView(private val ctx:Context): View(ctx) {
     private var multiMidY=0f
     private var multiDist=0f
     private var lastTouchWasMulti=false
+    private var longPressArmed=false
+    private var longPressShip:Ship?=null
+    private var longPressStart=0L
+    private var nextWaveAt=0L
+    private var waveNo=1
+    private var pendingWave=false
+    private var pendingShips=mutableListOf<Ship>()
+    private val longPressMs=550L
     private val hudH=250f
 
     private val catalog=listOf(
@@ -115,6 +123,7 @@ class HarborView(private val ctx:Context): View(ctx) {
                 captain=e.text.toString().trim().ifBlank{"Kapetan"}
                 prefs.edit().putString("lastCaptain",captain).apply()
                 toast("Pozdrav, kapetane $captain! ⚓")
+                nextWaveAt=SystemClock.elapsedRealtime()+45000L
                 showMail()
             }.setCancelable(false).show()
     }
@@ -380,29 +389,45 @@ class HarborView(private val ctx:Context): View(ctx) {
         when(e.actionMasked){
             MotionEvent.ACTION_DOWN->{
                 down=e.eventTime;lx=e.x;ly=e.y;movedSelected=false
-                selected=ships.filter{it.accepted&&!it.departed}.minByOrNull{
+                val hit=ships.filter{it.accepted&&!it.departed}.minByOrNull{
                     hypot((it.x-wx).toDouble(),(it.y-wy).toDouble())
                 }?.takeIf{hypot((it.x-wx).toDouble(),(it.y-wy).toDouble()) < 34/scale}
-                panning=selected==null
+                if(hit?.placed==true){
+                    selected=null;longPressShip=hit;longPressStart=e.eventTime;longPressArmed=true;panning=false
+                }else{
+                    selected=hit;longPressShip=null;longPressArmed=false;panning=selected==null
+                }
                 return true
             }
             MotionEvent.ACTION_MOVE->{
+                if(longPressArmed){
+                    val held=e.eventTime-longPressStart
+                    val drift=hypot((e.x-lx).toDouble(),(e.y-ly).toDouble())
+                    if(held>=longPressMs && drift<42){
+                        selected=longPressShip;longPressArmed=false
+                        selected?.let{toast("${it.name} • premještanje omogućeno")}
+                    }else if(drift>=42){longPressArmed=false;longPressShip=null}
+                }
                 selected?.let{ship->
-                    if(ship.placed)ship.placed=false
                     val dx=(e.x-lx)/scale;val dy=(e.y-ly)/scale
                     if(abs(dx)+abs(dy)>1f)movedSelected=true
+                    val oldX=ship.x;val oldY=ship.y
                     ship.x+=dx;ship.y+=dy
-                } ?: if(panning){
-                    panX+=e.x-lx;panY+=e.y-ly;clampPan()
-                }
+                    if(hullTouchesLand(ship)){ship.x=oldX;ship.y=oldY}
+                } ?: if(panning){panX+=e.x-lx;panY+=e.y-ly;clampPan()}
                 lx=e.x;ly=e.y;invalidate();return true
             }
             MotionEvent.ACTION_UP->{
+                if(longPressArmed){longPressArmed=false;longPressShip=null;return true}
                 selected?.let{ship->
-                    if(!movedSelected && e.eventTime-down<300)ship.rot=(ship.rot+90)%360
-                    else validatePlacement(ship)
+                    if(!movedSelected && !ship.placed && e.eventTime-down<300)ship.rot=(ship.rot+90)%360
+                    else if(movedSelected){
+                        val wasPlaced=ship.placed
+                        validatePlacement(ship)
+                        if(wasPlaced && ship.placed)score-=movePenalty
+                    }
                 }
-                selected=null;panning=false;invalidate();return true
+                selected=null;longPressShip=null;panning=false;invalidate();return true
             }
             MotionEvent.ACTION_CANCEL->{selected=null;panning=false;return true}
         }
@@ -415,29 +440,88 @@ class HarborView(private val ctx:Context): View(ctx) {
         panX=panX.coerceIn(-maxX,maxX);panY=panY.coerceIn(-maxY,maxY)
     }
 
+    private fun checkIncomingWave(){
+        if(!accepted || pendingWave || nextWaveAt==0L)return
+        if(SystemClock.elapsedRealtime()>=nextWaveAt){
+            waveNo++
+            val activeNames=ships.filter{!it.departed}.map{it.name}.toSet()
+            pendingShips=catalog.filter{it.name !in activeNames}.shuffled().take((3..5).random()).map{it.copy()}.toMutableList()
+            pendingWave=true
+            toast("NOVI ZAHTJEV • ${pendingShips.size} BRODOVA")
+            showIncomingWave()
+        }
+    }
+
+    private fun showIncomingWave(){
+        if(!pendingWave || pendingShips.isEmpty())return
+        val names=pendingShips.mapIndexed{i,b->"${i+1}. ${b.name} • ${b.type} • ${b.length} m • ${b.target} • ${b.days} dana"}.toTypedArray()
+        val checked=BooleanArray(pendingShips.size){true}
+        AlertDialog.Builder(ctx)
+            .setTitle("NOVI ZAHTJEV • TURA $waveNo")
+            .setMultiChoiceItems(names,checked){_,which,isChecked->checked[which]=isChecked}
+            .setMessage("Označeni brodovi bit će prihvaćeni. Makni kvačicu s brodova koje želiš odbiti.")
+            .setPositiveButton("POTVRDI ODLUKU"){_,_->
+                pendingShips.forEachIndexed{i,b->
+                    b.accepted=checked[i]
+                    if(checked[i]){
+                        b.x=95f+(i%4)*78f;b.y=285f+(i/4)*75f
+                        ships.add(b)
+                    }else score-=rejectPenalty
+                }
+                pendingShips.clear();pendingWave=false
+                nextWaveAt=SystemClock.elapsedRealtime()+60000L
+                invalidate()
+            }
+            .setNegativeButton("KASNIJE",null)
+            .show()
+    }
+
     private fun showInfo(){
         val now=SystemClock.elapsedRealtime()
         val waiting=ships.filter{it.accepted&&!it.placed&&!it.departed}
-        val inPort=ships.filter{it.placed&&!it.departed}.sortedBy{it.departureAt}
-        val rejected=ships.filter{!it.accepted}
+        val inPort=ships.filter{it.accepted&&it.placed&&!it.departed}.sortedBy{it.departureAt}
         val departed=ships.filter{it.departed}
-        val root=LinearLayout(ctx).apply{orientation=LinearLayout.VERTICAL;setPadding(28,24,28,24);background=rounded(Color.rgb(7,29,44),24f)}
-        fun title(x:String){root.addView(TextView(ctx).apply{text=x;textSize=22f;setTextColor(Color.WHITE);typeface=Typeface.DEFAULT_BOLD;setPadding(0,12,0,8)})}
-        fun row(x:String,accent:Boolean=false){root.addView(TextView(ctx).apply{text=x;textSize=17f;setTextColor(if(accent)Color.rgb(111,210,198) else Color.rgb(224,239,244));setPadding(12,10,12,10);background=rounded(Color.rgb(13,48,67),14f)})}
-        root.addView(TextView(ctx).apply{text="HARBOUR CONTROL";textSize=27f;setTextColor(Color.WHITE);typeface=Typeface.DEFAULT_BOLD})
-        root.addView(TextView(ctx).apply{text="$captain   •   %02d:%02d   •   $score bodova".format(secs/60,secs%60);textSize=17f;setTextColor(Color.rgb(132,205,226));setPadding(0,4,0,8)})
-        title("ČEKA SMJEŠTAJ  ${waiting.size}")
-        if(waiting.isEmpty())row("Sve prihvaćeno je smješteno ✓",true) else waiting.forEach{row("${it.name}  •  ${it.length} m  •  ${it.target}  •  ${it.days} dana")}
-        title("U LUCI / ODLASCI  ${inPort.size}")
-        if(inPort.isEmpty())row("Nema privezanih brodova") else inPort.forEach{
-            val left=max(0L,(it.departureAt-now+999)/1000);row("${it.name}  •  odlazak za %02d:%02d  •  ${it.target}".format(left/60,left%60),left<30)
+        val dock85=inPort.filter{dockId(it)==85}.sumOf{it.length}
+        val dock60=inPort.filter{dockId(it)==60}.sumOf{it.length}
+        val dock140=inPort.filter{dockId(it)==140}.sumOf{it.length}
+        val nextWave=if(pendingWave)"NOVI ZAHTJEV ČEKA ODLUKU" else if(nextWaveAt>now)"za ${((nextWaveAt-now)/1000)} s" else "uskoro"
+        val msg=buildString{
+            append("OPERATIVNO STANJE LUKE\\n\\n")
+            append("U LUCI: ${inPort.size}     ČEKA: ${waiting.size}     OTPLOVILI: ${departed.size}\\n")
+            append("SLJEDEĆI ZAHTJEV: $nextWave\\n\\n")
+            append("ČEKA SMJEŠTAJ\\n")
+            if(waiting.isEmpty())append("• Nema prihvaćenih brodova na čekanju.\\n")
+            waiting.forEach{append("• ${it.name} | ${it.length} m | ${it.target}\\n")}
+            append("\\nBRODOVI U LUCI / ODLASCI\\n")
+            if(inPort.isEmpty())append("• Luka je trenutno prazna.\\n")
+            inPort.forEach{
+                val left=max(0L,(it.departureAt-now+999)/1000)
+                val loc=if(it.target=="DOK")"${dockId(it)} m DOK" else it.target
+                append("• ${it.name} • $loc • odlazak %02d:%02d\\n".format(left/60,left%60))
+            }
+            append("\\nKAPACITET DOKOVA\\n")
+            append("• Srednji 85 m: $dock85 / 85 m • slobodno ${85-dock85} m\\n")
+            append("• Mali 60 m: $dock60 / 60 m • slobodno ${60-dock60} m\\n")
+            append("• Veliki 140 m: $dock140 / 140 m • slobodno ${140-dock140} m\\n")
         }
-        title("ODBIJENI  ${rejected.size}");if(rejected.isEmpty())row("Nema odbijenih brodova") else rejected.forEach{row("${it.name}  •  ${it.length} m")}
-        title("OTPLOVILI  ${departed.size}");if(departed.isEmpty())row("Još nema isplovljenja") else departed.forEach{row("${it.name} ✓",true)}
-        val scroll=ScrollView(ctx).apply{addView(root)}
-        AlertDialog.Builder(ctx).setView(scroll).setPositiveButton("NASTAVI IGRU",null).show().also{d->
-            d.window?.setLayout((resources.displayMetrics.widthPixels*.94).toInt(),(resources.displayMetrics.heightPixels*.88).toInt())
-        }
+        AlertDialog.Builder(ctx).setTitle("HARBOUR CONTROL").setMessage(msg)
+            .setPositiveButton("NASTAVI",null)
+            .apply{if(pendingWave)setNeutralButton("OTVORI NOVI ZAHTJEV"){_,_->showIncomingWave()}}
+            .show()
+    }
+
+
+    private fun hullTouchesLand(s:Ship):Boolean{
+        val halfLong=max(18f,s.length*0.46f)
+        val halfWide=max(7f,min(16f,s.length*0.10f))
+        val hx=if(s.rot%180==0)halfLong else halfWide
+        val hy=if(s.rot%180==0)halfWide else halfLong
+        val left=s.x-hx;val right=s.x+hx;val top=s.y-hy
+        if(top<255f)return true
+        if(left<22f)return true
+        val worldW=width.toFloat().coerceAtLeast(800f)
+        if(right>worldW-22f)return true
+        return false
     }
 
     private fun validatePlacement(s:Ship){

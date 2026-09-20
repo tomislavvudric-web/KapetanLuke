@@ -1,15 +1,9 @@
-# Kapetan Luke v0.6
+# Kapetan Luke v0.7
 
-Glavne izmjene:
-- potpuno prepisan zoom/pan: dva prsta upravljaju samo kartom, do 5× zoom
-- veliki Harbour Control HUD (250 px), izvan zooma
-- INFO tipka s većom dodirnom zonom
-- 20 različitih brodova; svaka nova igra nasumično bira 7
-- provjera dokova 85 / 60 / 140 m i preostale slobodne dužine
-- jasne poruke zašto brod ne može biti privezan
-- osvježena paleta mora, obale, dokova i brodova
-- reset generira novu kombinaciju brodova
-
-
-## v0.6.1
-- Ispravljena nedostajuća završna zagrada u onDraw(), koja je uzrokovala Kotlin compilation error i lanac `private is not applicable to local function` grešaka.
+- vezani brod: dugi pritisak za premještanje
+- čvrsta granica kopna tijekom povlačenja
+- nove ture zahtjeva tijekom igre
+- svaki novi brod se pojedinačno prihvaća/odbija
+- INFO: brodovi u luci, čekanje, odlasci, dokovi i sljedeći zahtjev
+- vizualna dorada: veliki Harbour Control, čišći kontrast i sjene brodova
+- zadržan 2-prstni zoom/pan
