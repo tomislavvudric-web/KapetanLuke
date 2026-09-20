@@ -1,10 +1,11 @@
-# Kapetan Luke v0.5
+# Kapetan Luke v0.6
 
-- moderni Harbour Control izgled i puno veći HUD
-- INFO kao veliki pregled luke
-- pojedinačno prihvaćanje/odbijanje svakog ponuđenog broda
-- RESET IGRE s potvrdom
-- dva prsta uvijek upravljaju kartom: pinch zoom + pan
-- jedan prst na brodu pomiče brod
-- precizna poruka zašto se brod ne može vezati
-- provjera ograničenja veza, gata, pontona i dokova
+Glavne izmjene:
+- potpuno prepisan zoom/pan: dva prsta upravljaju samo kartom, do 5× zoom
+- veliki Harbour Control HUD (250 px), izvan zooma
+- INFO tipka s većom dodirnom zonom
+- 20 različitih brodova; svaka nova igra nasumično bira 7
+- provjera dokova 85 / 60 / 140 m i preostale slobodne dužine
+- jasne poruke zašto brod ne može biti privezan
+- osvježena paleta mora, obale, dokova i brodova
+- reset generira novu kombinaciju brodova

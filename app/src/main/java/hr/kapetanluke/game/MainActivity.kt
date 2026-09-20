@@ -50,15 +50,29 @@ class HarborView(private val ctx:Context): View(ctx) {
     private var multiTouch=false
     private var multiMidX=0f
     private var multiMidY=0f
-    private val hudH=150f
+    private var multiDist=0f
+    private var lastTouchWasMulti=false
+    private val hudH=250f
 
-    private val ships=mutableListOf(
-        Ship("MY Aurora","Jahta",82,6,"VEZ"),
-        Ship("Ocean Pioneer","Supply",54,10,"DOK"),
-        Ship("Blue Star","Katamaran",42,3,"VEZ"),
-        Ship("Tender 07","Tender",8,4,"PONTON"),
-        Ship("Adriatic Bulk","Rasuti teret",104,12,"VEZ")
+    private val catalog=listOf(
+        Ship("MY Aurora","Jahta",82,6,"VEZ"), Ship("MY Solis","Jahta",44,4,"VEZ"),
+        Ship("MY Adriana","Jahta",63,5,"VEZ"), Ship("MY Bellissima","Jahta",108,8,"VEZ"),
+        Ship("Ocean Pioneer","Supply",54,10,"DOK"), Ship("North Wind","Supply",72,7,"VEZ"),
+        Ship("Blue Star","Katamaran",42,3,"VEZ"), Ship("Dalmatia Jet","Katamaran",38,4,"VEZ"),
+        Ship("Tender 07","Tender",8,4,"PONTON"), Ship("Tender Luna","Tender",7,2,"PONTON"),
+        Ship("Tender Bravo","Tender",6,3,"PONTON"), Ship("Adriatic Bulk","Rasuti teret",104,12,"VEZ"),
+        Ship("Marjan Trader","Rasuti teret",96,9,"VEZ"), Ship("Jadran Ferry","Trajekt",88,5,"VEZ"),
+        Ship("Trogir Ferry","Trajekt",64,4,"VEZ"), Ship("Orkan","Vojni",76,6,"VEZ"),
+        Ship("Patrol 21","Vojni",45,4,"VEZ"), Ship("Petrol Mare","Tanker",109,11,"VEZ"),
+        Ship("Sea Falcon","Offshore",58,7,"DOK"), Ship("Explorer One","Jahta",132,9,"DOK")
     )
+    private val ships=mutableListOf<Ship>()
+
+    private fun newShipSet(){
+        ships.clear()
+        val chosen=catalog.shuffled().take(7)
+        chosen.forEach{q->ships.add(q.copy())}
+    }
 
     private val h=Handler(Looper.getMainLooper())
     private val tick=object:Runnable{
@@ -84,6 +98,7 @@ class HarborView(private val ctx:Context): View(ctx) {
     init{
         isFocusable=true
         h.post(tick)
+        newShipSet()
         post{askCaptain()}
     }
 
@@ -155,7 +170,10 @@ class HarborView(private val ctx:Context): View(ctx) {
         if(width==0)return
         val W=width.toFloat(); val H=height.toFloat()
 
-        c.drawColor(Color.rgb(43,124,153))
+        c.drawColor(Color.rgb(20,92,124))
+        // diskretne linije mora daju moderniji osjećaj dubine
+        p.color=Color.argb(35,210,240,248);p.strokeWidth=1f
+        for(yy in 280..height step 70) c.drawLine(0f,yy.toFloat(),W,yy.toFloat(),p)
 
         c.save()
         c.translate(panX,panY)
@@ -167,7 +185,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         gatX=pontX+55f
 
         // Kopno je namjerno usko - vezivanje uz sami rub obale.
-        p.color=Color.rgb(223,214,185)
+        p.color=Color.rgb(194,184,151)
         c.drawRect(0f,68f,worldW,118f,p)
 
         val start=18f
@@ -184,7 +202,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         c.drawText("4–8: 45–65 m",westEnd*.40f,108f,t)
         c.drawText("1–3: do 45 m",westEnd*.77f,108f,t)
 
-        p.color=Color.rgb(188,190,180)
+        p.color=Color.rgb(142,151,148)
         c.drawRect(pontX,118f,pontX+18f,250f,p)
         t.textSize=11f;c.drawText("PONTON",pontX-15f,88f,t)
 
@@ -195,7 +213,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         c.drawRect(gatX+30f,68f,worldW,118f,p)
         t.textSize=13f;c.drawText("ISTOČNA OBALA 150 m",gatX+45f,98f,t)
 
-        p.color=Color.rgb(180,184,178)
+        p.color=Color.rgb(119,134,136)
         c.drawRoundRect(RectF(gatX-150f,380f,gatX-118f,565f),6f,6f,p)
         c.drawRoundRect(RectF(gatX-82f,425f,gatX-50f,565f),6f,6f,p)
         c.drawRoundRect(RectF(gatX,380f,gatX+30f,610f),6f,6f,p)
@@ -207,24 +225,32 @@ class HarborView(private val ctx:Context): View(ctx) {
         if(accepted) ships.filter{!it.departed}.forEach{drawShip(c,it)}
         c.restore()
 
-        // Moderni Harbour Control HUD - fizički odvojen od karte i nikad se ne zumira.
-        p.color=Color.rgb(6,25,39);c.drawRect(0f,0f,W,hudH,p)
-        p.color=Color.rgb(12,48,68);c.drawRoundRect(RectF(12f,12f,W-12f,138f),24f,24f,p)
-        t.color=Color.rgb(130,202,220);t.textSize=14f;c.drawText("KAPETAN",28f,39f,t)
-        t.color=Color.WHITE;t.textSize=24f;c.drawText(captain.take(18),28f,72f,t)
-        t.color=Color.rgb(130,202,220);t.textSize=14f;c.drawText("VRIJEME",28f,101f,t)
-        t.color=Color.WHITE;t.textSize=28f;c.drawText("%02d:%02d".format(secs/60,secs%60),28f,132f,t)
-        t.color=Color.rgb(130,202,220);t.textSize=14f;c.drawText("BODOVI",W*.31f,101f,t)
-        t.color=Color.WHITE;t.textSize=28f;c.drawText(score.toString(),W*.31f,132f,t)
+        // HARBOUR CONTROL: velik, čitljiv i potpuno izvan zooma karte.
+        p.color=Color.rgb(5,18,30);c.drawRect(0f,0f,W,hudH,p)
+        p.color=Color.rgb(10,42,61);c.drawRoundRect(RectF(14f,14f,W-14f,hudH-16f),30f,30f,p)
 
-        drawButton(c,RectF(W-330f,24f,W-222f,78f),"INFO")
-        drawButton(c,RectF(W-212f,24f,W-94f,78f),"POSTAVKE")
-        drawButton(c,RectF(W-330f,86f,W-94f,132f),"RESET IGRE")
+        t.color=Color.rgb(104,207,221);t.textSize=18f;c.drawText("⚓  KAPETAN LUKE",30f,48f,t)
+        t.color=Color.WHITE;t.textSize=30f;c.drawText(captain.take(20),30f,86f,t)
 
-        p.color=Color.argb(210,6,25,39);c.drawRoundRect(RectF(14f,H-42f,W-14f,H-8f),17f,17f,p)
-        t.textSize=13f;t.color=Color.WHITE
-        c.drawText("1 prst: brod  •  2 prsta: ZOOM + POMAK KARTE",28f,H-20f,t)
-    }
+        // velike brojke u zasebnim karticama
+        p.color=Color.rgb(7,30,46);c.drawRoundRect(RectF(28f,106f,W*.30f,218f),22f,22f,p)
+        t.color=Color.rgb(116,194,214);t.textSize=16f;c.drawText("VRIJEME",44f,137f,t)
+        t.color=Color.WHITE;t.textSize=42f;c.drawText("%02d:%02d".format(secs/60,secs%60),44f,190f,t)
+
+        p.color=Color.rgb(7,30,46);c.drawRoundRect(RectF(W*.32f,106f,W*.55f,218f),22f,22f,p)
+        t.color=Color.rgb(116,194,214);t.textSize=16f;c.drawText("BODOVI",W*.34f,137f,t)
+        t.color=Color.WHITE;t.textSize=42f;c.drawText(score.toString(),W*.34f,190f,t)
+
+        drawButton(c,RectF(W*.58f,30f,W-24f,92f),"INFO  •  PREGLED LUKE")
+        drawButton(c,RectF(W*.58f,106f,W*.78f,166f),"POSTAVKE")
+        drawButton(c,RectF(W*.80f,106f,W-24f,166f),"RESET")
+        t.color=Color.rgb(174,213,224);t.textSize=14f
+        c.drawText("2 prsta = ZOOM + POMAK KARTE",W*.59f,205f,t)
+        c.drawText("1 prst na brodu = PREMJEŠTANJE",W*.59f,228f,t)
+
+        p.color=Color.argb(220,5,18,30);c.drawRoundRect(RectF(14f,H-46f,W-14f,H-8f),18f,18f,p)
+        t.textSize=14f;t.color=Color.WHITE
+        c.drawText("Približi kartu s 2 prsta, namjesti vez, zatim uhvati brod s 1 prstom.",28f,H-21f,t)
 
     private fun drawButton(c:Canvas,r:RectF,label:String){
         p.color=Color.rgb(28,113,139)
@@ -305,47 +331,57 @@ class HarborView(private val ctx:Context): View(ctx) {
     override fun onTouchEvent(e:MotionEvent):Boolean{
         val W=width.toFloat()
 
-        // DVA PRSTA = ISKLJUČIVO KARTA. Brod se odmah otpušta.
-        if(e.pointerCount>=2 || multiTouch){
-            if(e.pointerCount>=2){
-                selected=null;panning=false
-                val midX=(e.getX(0)+e.getX(1))/2f
-                val midY=(e.getY(0)+e.getY(1))/2f
-                if(!multiTouch){multiTouch=true;multiMidX=midX;multiMidY=midY}
-                else if(e.actionMasked==MotionEvent.ACTION_MOVE){
-                    // pan po sredini dva prsta, istodobno sa pinch zoomom
-                    panX+=midX-multiMidX;panY+=midY-multiMidY
-                    multiMidX=midX;multiMidY=midY
-                }
-                scaleDetector.onTouchEvent(e)
-                clampPan();invalidate();return true
-            }else{
-                // Nakon podizanja jednog prsta ne smije se slučajno uhvatiti brod.
-                scaleDetector.onTouchEvent(e)
-                if(e.actionMasked==MotionEvent.ACTION_UP || e.actionMasked==MotionEvent.ACTION_POINTER_UP || e.actionMasked==MotionEvent.ACTION_CANCEL){
-                    multiTouch=false;selected=null;panning=false
-                }
-                invalidate();return true
+        // HUD je uvijek odvojen od karte.
+        if(e.actionMasked==MotionEvent.ACTION_DOWN && e.y<hudH){
+            when{
+                e.x>=W*.58f && e.y<100f -> {showInfo();return true}
+                e.x in (W*.58f)..(W*.78f) && e.y in 100f..180f -> {showSettings();return true}
+                e.x>=W*.78f && e.y in 100f..180f -> {confirmRestart();return true}
             }
+            return true
         }
-        scaleDetector.onTouchEvent(e)
-        if(!accepted && e.y>=hudH)return true
+
+        // DVA PRSTA: vlastiti gesture engine. Nikad ne dira brod.
+        if(e.pointerCount>=2){
+            selected=null;panning=false;lastTouchWasMulti=true
+            val x0=e.getX(0); val y0=e.getY(0); val x1=e.getX(1); val y1=e.getY(1)
+            val midX=(x0+x1)/2f; val midY=(y0+y1)/2f
+            val dist=hypot((x1-x0).toDouble(),(y1-y0).toDouble()).toFloat().coerceAtLeast(10f)
+
+            if(e.actionMasked==MotionEvent.ACTION_POINTER_DOWN || !multiTouch){
+                multiTouch=true;multiMidX=midX;multiMidY=midY;multiDist=dist
+            }else if(e.actionMasked==MotionEvent.ACTION_MOVE){
+                // svjetska točka ispod sredine prstiju prije promjene
+                val worldX=(multiMidX-panX)/scale
+                val worldY=(multiMidY-panY)/scale
+                val factor=(dist/multiDist).coerceIn(.75f,1.35f)
+                val newScale=(scale*factor).coerceIn(1f,5f)
+                scale=newScale
+                // ista svjetska točka ostaje ispod nove sredine -> zoom i pan rade zajedno
+                panX=midX-worldX*scale
+                panY=midY-worldY*scale
+                multiMidX=midX;multiMidY=midY;multiDist=dist
+                clampPan();invalidate()
+            }
+            return true
+        }
+
+        // Nakon pinch geste preostali prst ne smije slučajno uhvatiti brod.
+        if(lastTouchWasMulti){
+            if(e.actionMasked==MotionEvent.ACTION_UP || e.actionMasked==MotionEvent.ACTION_CANCEL){
+                lastTouchWasMulti=false;multiTouch=false
+            }
+            return true
+        }
+
+        if(!accepted)return true
         val wx=screenToWorldX(e.x);val wy=screenToWorldY(e.y)
         when(e.actionMasked){
             MotionEvent.ACTION_DOWN->{
-                if(e.y<hudH){
-                    when{
-                        e.x in (W-330f)..(W-222f) && e.y<82f -> {showInfo();return true}
-                        e.x in (W-212f)..(W-94f) && e.y<82f -> {showSettings();return true}
-                        e.x in (W-330f)..(W-94f) && e.y>=82f -> {confirmRestart();return true}
-                    }
-                    return true
-                }
                 down=e.eventTime;lx=e.x;ly=e.y;movedSelected=false
                 selected=ships.filter{it.accepted&&!it.departed}.minByOrNull{
                     hypot((it.x-wx).toDouble(),(it.y-wy).toDouble())
-                }?.takeIf{ hypot((it.x-wx).toDouble(),(it.y-wy).toDouble()) < 38/scale }
-                // jedan prst na praznom prostoru može pomicati kartu
+                }?.takeIf{hypot((it.x-wx).toDouble(),(it.y-wy).toDouble()) < 34/scale}
                 panning=selected==null
                 return true
             }
@@ -355,14 +391,15 @@ class HarborView(private val ctx:Context): View(ctx) {
                     val dx=(e.x-lx)/scale;val dy=(e.y-ly)/scale
                     if(abs(dx)+abs(dy)>1f)movedSelected=true
                     ship.x+=dx;ship.y+=dy
-                } ?: run{
-                    if(panning){panX+=e.x-lx;panY+=e.y-ly;clampPan()}
+                } ?: if(panning){
+                    panX+=e.x-lx;panY+=e.y-ly;clampPan()
                 }
                 lx=e.x;ly=e.y;invalidate();return true
             }
             MotionEvent.ACTION_UP->{
                 selected?.let{ship->
-                    if(!movedSelected && e.eventTime-down<300)ship.rot=(ship.rot+90)%360 else validatePlacement(ship)
+                    if(!movedSelected && e.eventTime-down<300)ship.rot=(ship.rot+90)%360
+                    else validatePlacement(ship)
                 }
                 selected=null;panning=false;invalidate();return true
             }
@@ -418,16 +455,26 @@ class HarborView(private val ctx:Context): View(ctx) {
     }
 
     private fun placementProblem(s:Ship):String?{
-        if(collides(s))return "⛔ Mjesto je zauzeto drugim brodom."
+        if(s.target!="DOK" && collides(s))return "⛔ Mjesto je zauzeto drugim brodom."
         if(s.target=="PONTON"){
             if(s.type!="Tender" || s.length>8)return "⛔ Ponton je samo za tendere do 8 m."
             if(!(s.x in (pontX-40f)..(pontX+50f) && s.y in 115f..310f))return "⛔ Brod nije postavljen uz ponton."
             return null
         }
         if(s.target=="DOK"){
-            if(!(s.y>340f && s.x in (gatX-210f)..(gatX+75f)))return "⛔ Nalog traži DOK. Postavi brod u jedan od plutajućih dokova."
-            val maxDock=when{ s.x<gatX-100f->85;s.x<gatX-35f->60;else->140 }
-            if(s.length>maxDock)return "⛔ Odabrani dok ima $maxDock m, a brod ${s.length} m."
+            val dock=when{
+                s.x in (gatX-175f)..(gatX-100f) && s.y in 350f..590f -> Pair("Srednji dok",85)
+                s.x in (gatX-100f)..(gatX-35f) && s.y in 395f..590f -> Pair("Mali dok",60)
+                s.x in (gatX-35f)..(gatX+70f) && s.y in 350f..635f -> Pair("Veliki dok",140)
+                else -> null
+            } ?: return "⛔ Nalog traži DOK. Brod mora biti unutar jednog od tri plutajuća doka."
+
+            if(s.length>dock.second)return "⛔ ${dock.first} ima ${dock.second} m, a ${s.name} ima ${s.length} m."
+
+            val occupied=ships.filter{it!==s && it.placed && !it.departed && it.target=="DOK" && sameDock(it,s)}
+                .sumOf{it.length}
+            val free=dock.second-occupied
+            if(s.length>free)return "⛔ ${dock.first}: zauzeto je $occupied/${dock.second} m. Slobodno je samo $free m, a brod ima ${s.length} m."
             return null
         }
         if(s.y in 105f..185f && s.x<westEnd){
@@ -454,6 +501,14 @@ class HarborView(private val ctx:Context): View(ctx) {
         if(s.x in (gatX-45f)..(gatX+75f) && s.y in 115f..390f)return s.length<=120
         return false
     }
+
+    private fun dockId(s:Ship):Int=when{
+        s.x in (gatX-175f)..(gatX-100f) -> 85
+        s.x in (gatX-100f)..(gatX-35f) -> 60
+        s.x in (gatX-35f)..(gatX+70f) -> 140
+        else -> 0
+    }
+    private fun sameDock(a:Ship,b:Ship)=dockId(a)!=0 && dockId(a)==dockId(b)
 
     private fun collides(s:Ship):Boolean=
         ships.any{o->
@@ -546,10 +601,7 @@ class HarborView(private val ctx:Context): View(ctx) {
         secs=300
         accepted=false
         scale=1f;panX=0f;panY=0f
-        ships.forEach{
-            it.x=0f;it.y=0f;it.rot=0;it.accepted=false;it.placed=false
-            it.scored=false;it.departed=false;it.placedAt=0;it.departureAt=0
-        }
+        newShipSet()
         askCaptain()
         invalidate()
     }
